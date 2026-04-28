@@ -1,5 +1,5 @@
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from skeptiq.core.config import Settings
 from skeptiq.core.db import session_scope
@@ -72,6 +72,16 @@ PENALTY_HIGH_RISK_SL = 0.05
 # article (main subject is something else), apply this penalty. -10pp is
 # typically enough to drop the signal below MIN_CONFIDENCE on its own.
 PENALTY_SECONDARY_MENTION = 0.10
+
+# Notatki — auto-expire window per horizon. Beyond expires_at, the hit-rate
+# tracker writes a final outcome (tp_hit / sl_hit / expired) so signals don't
+# stay "open" indefinitely.
+HORIZON_EXPIRE_HOURS: dict[str, int] = {
+    "immediate": 6,
+    "hours": 12,
+    "days": 72,
+    "weeks": 168,
+}
 
 
 def compute_stop_loss_take_profit(
@@ -453,6 +463,9 @@ class RecommendationBuilder:
         analysis_id: int,
         telegram_message_id: int | None = None,
     ) -> int:
+        expire_h = HORIZON_EXPIRE_HOURS.get(recommendation.horizon, 24)
+        sent_at = recommendation.detected_at or datetime.now(UTC)
+        expires_at = sent_at + timedelta(hours=expire_h)
         orm = RecommendationORM(
             analysis_id=analysis_id,
             ticker=recommendation.ticker,
@@ -468,6 +481,8 @@ class RecommendationBuilder:
             take_profit=recommendation.take_profit,
             telegram_message_id=telegram_message_id,
             price_at_send=recommendation.technical_context.price,
+            sent_at=sent_at,
+            expires_at=expires_at,
         )
         async with session_scope() as session:
             session.add(orm)

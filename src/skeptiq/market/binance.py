@@ -142,6 +142,53 @@ class BinanceClient:
             return None
         return kline
 
+    async def fetch_klines_range(
+        self,
+        ticker: str,
+        start_dt: datetime,
+        end_dt: datetime,
+        *,
+        interval: str = "1h",
+        limit: int = 1000,
+    ) -> list[Kline]:
+        """Fetch klines covering a [start_dt, end_dt] UTC window.
+
+        Used by the hit-rate tracker to scan a recommendation's open
+        period for TP/SL hits. Drops the in-progress kline if present.
+        Bypasses the rolling cache (each call is a unique window).
+        """
+        symbol = self._symbol(ticker)
+        start_ms = int(start_dt.timestamp() * 1000)
+        end_ms = int(end_dt.timestamp() * 1000)
+        try:
+            resp = await self._http.get(
+                BINANCE_KLINES_URL,
+                params={
+                    "symbol": symbol,
+                    "interval": interval,
+                    "startTime": start_ms,
+                    "endTime": end_ms,
+                    "limit": limit,
+                },
+            )
+            resp.raise_for_status()
+        except httpx.HTTPError as exc:
+            log.warning(
+                "binance_klines_range_failed",
+                symbol=symbol,
+                start=start_dt.isoformat(),
+                end=end_dt.isoformat(),
+                error=str(exc),
+            )
+            raise
+
+        raw = resp.json()
+        klines = [_parse_kline(row) for row in raw]
+        now_ms = int(time.time() * 1000)
+        if klines and klines[-1].close_time_ms > now_ms:
+            klines = klines[:-1]
+        return klines
+
     async def aclose(self) -> None:
         if self._owns_http:
             await self._http.aclose()

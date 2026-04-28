@@ -112,6 +112,21 @@ class Recommendation(Base):
         DateTime(timezone=True),
         default=_utcnow,
     )
+
+    # v0.2.1 horizon-aware expiry + final outcome.
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    final_outcome: Mapped[str | None] = mapped_column(
+        String(16),
+        nullable=True,
+    )  # "tp_hit" / "sl_hit" / "expired"
+    final_outcome_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    final_outcome_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
     telegram_message_id: Mapped[int | None] = mapped_column(
         BigInteger,
         nullable=True,
