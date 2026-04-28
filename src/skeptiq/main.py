@@ -36,16 +36,20 @@ async def _processor_loop(
             for item in items:
                 analysis, analysis_id = await analyzer.analyze_item(item)
                 recs = await builder.build(analysis=analysis, item=item)
+                if not recs:
+                    continue
+                # All recs share an analysis -> one Telegram message,
+                # but each rec is persisted separately for hit-rate tracking.
+                msg_id: int | None = None
+                try:
+                    msg_id = await sender.send_grouped(recs)
+                except Exception as exc:
+                    log.exception(
+                        "telegram_send_failed",
+                        tickers=[r.ticker for r in recs],
+                        error=str(exc),
+                    )
                 for rec in recs:
-                    msg_id: int | None = None
-                    try:
-                        msg_id = await sender.send(rec)
-                    except Exception as exc:
-                        log.exception(
-                            "telegram_send_failed",
-                            ticker=rec.ticker,
-                            error=str(exc),
-                        )
                     await builder.persist(
                         recommendation=rec,
                         analysis_id=analysis_id,
