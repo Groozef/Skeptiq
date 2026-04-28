@@ -27,6 +27,9 @@ def _analysis(**overrides: Any) -> NewsAnalysis:
         "key_points": ["a", "b"],
         "reasoning": "r " * 5,
         "counter_signals": ["c"],
+        "event_subject": "test event placeholder",
+        "event_key_numbers": [],
+        "event_related_projects": [],
     }
     base.update(overrides)
     return NewsAnalysis.model_validate(base)
@@ -150,6 +153,14 @@ async def test_build_emits_one_rec_per_watchlist_ticker(
     monkeypatch.setattr(
         "skeptiq.recommender.builder.compute_invalidation_level",
         _fake_compute_invalidation,
+    )
+
+    # Dedup needs DB; this unit test isolates builder logic, so stub it out.
+    async def _no_dedup(**_kw: Any) -> None:
+        return None
+
+    monkeypatch.setattr(
+        "skeptiq.recommender.builder.find_recent_duplicate", _no_dedup
     )
 
     from skeptiq.market.binance import BinanceClient

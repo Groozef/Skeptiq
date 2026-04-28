@@ -58,3 +58,21 @@ class NewsAnalysis(BaseModel):
         description="At least one specific counter-argument or risk. "
         "Mandatory even for very_bullish/very_bearish. No boilerplate.",
     )
+    event_subject: str = Field(
+        description="ONE short phrase identifying the main event the news is "
+        "about. Used downstream to deduplicate articles about the same event. "
+        "Examples: 'Kelp DAO exploit and recovery', "
+        "'BlackRock spot ETF inflow streak', 'FOMC May 2026 decision'.",
+    )
+    event_key_numbers: list[str] = Field(
+        default_factory=list,
+        description="Distinctive numerical values that fingerprint the event "
+        "(include units). Examples: ['$293M', '$300M'], ['$1.2B', '9000 BTC'], "
+        "['25 bps']. Empty if no notable numbers.",
+    )
+    event_related_projects: list[str] = Field(
+        default_factory=list,
+        description="Other crypto projects/protocols/companies named in the "
+        "article BEYOND affected_tickers. Examples: ['Aave', 'DeFi United', "
+        "'rsETH'] when the news is about Kelp but Aave/DeFi-United are named.",
+    )

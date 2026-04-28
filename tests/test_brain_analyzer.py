@@ -44,6 +44,9 @@ async def test_analyze_item_persists_and_marks_processed(
         key_points=["Institutional demand confirmed", "Coincides with FOMC"],
         reasoning="Inflows of this size are historically directional. " * 2,
         counter_signals=["Resistance at $73k", "Sell-the-news risk"],
+        event_subject="ETF inflow milestone",
+        event_key_numbers=["$1B"],
+        event_related_projects=[],
     )
 
     async with session_scope() as session:

@@ -75,6 +75,13 @@ class Analysis(Base):
     cache_read_tokens: Mapped[int] = mapped_column(Integer, default=0)
     cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
 
+    # v0.2.1 event fingerprint for cross-article deduplication.
+    event_subject: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    event_key_numbers_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    event_related_projects_json: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )
+
     item: Mapped[IngestedItem] = relationship(back_populates="analyses")
     recommendations: Mapped[list["Recommendation"]] = relationship(
         back_populates="analysis"

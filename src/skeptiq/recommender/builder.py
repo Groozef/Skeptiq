@@ -11,6 +11,7 @@ from skeptiq.market.indicators import (
     compute_invalidation_level,
     compute_technical_context,
 )
+from skeptiq.recommender.dedup import find_recent_duplicate
 from skeptiq.schemas import (
     IMPACT_ORDER,
     Direction,
@@ -174,6 +175,27 @@ class RecommendationBuilder:
 
         recs: list[Recommendation] = []
         for ticker in tickers:
+            # Event-level dedup: another article about the same event already
+            # produced a Recommendation for this ticker in the last 24h.
+            dedup = await find_recent_duplicate(
+                ticker=ticker,
+                direction=direction,
+                event_subject=analysis.event_subject,
+                event_key_numbers=list(analysis.event_key_numbers),
+                event_related_projects=list(analysis.event_related_projects),
+            )
+            if dedup is not None:
+                kind, prev_id = dedup
+                log.info(
+                    "recommendation_deduplicated",
+                    ticker=ticker,
+                    direction=direction,
+                    kind=kind,
+                    prev_recommendation_id=prev_id,
+                    item_id=item.id,
+                )
+                continue
+
             try:
                 klines = await self._binance.fetch_klines(ticker)
                 tc = compute_technical_context(ticker, klines)

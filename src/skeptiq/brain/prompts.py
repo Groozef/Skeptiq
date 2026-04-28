@@ -129,7 +129,32 @@ FIELD GUIDANCE
    piece of evidence in the news that drove your call. Acknowledge any
    ambiguity.
 
-10. counter_signals - a list of >= 1 concrete counter-argument or risk to
+10. event_subject - ONE short phrase identifying the main event the article
+    is about. This is used downstream for deduplication: two articles about
+    the same event MUST produce highly overlapping subjects. Examples:
+    - "Kelp DAO exploit and recovery effort"
+    - "BlackRock spot Bitcoin ETF inflow streak"
+    - "FOMC interest rate decision May 2026"
+    - "Coinbase Q1 2026 earnings"
+    Be specific enough that two distinct events get distinct subjects, but
+    abstract enough that two articles about the same event share a similar
+    phrase. Keep under 100 characters.
+
+11. event_key_numbers - list of distinctive numerical values that fingerprint
+    the event. Always include the unit. Examples:
+    - ["$293M", "$300M"] (Kelp exploit losses + recovery raise)
+    - ["$1.2B", "9000 BTC"] (CoinShares inflow + Block treasury)
+    - ["25 bps", "5.25%"] (FOMC rate decision)
+    Empty list if the article has no notable numbers.
+
+12. event_related_projects - other crypto projects, protocols, or companies
+    named in the article BEYOND the entries in affected_tickers. Helps
+    disambiguate similar-sounding events. Examples:
+    - ["Aave", "DeFi United", "rsETH"] when the news is primarily about Kelp.
+    - ["BlackRock", "Fidelity", "Coinbase"] for ETF flow stories.
+    Empty list if the only entities mentioned are already in affected_tickers.
+
+13. counter_signals - a list of >= 1 concrete counter-argument or risk to
    your own call. MANDATORY; even for very_bullish or very_bearish you MUST
    surface at least one credible disconfirming consideration.
    Useful kinds of counter-signals:
