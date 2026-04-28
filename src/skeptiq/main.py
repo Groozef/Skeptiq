@@ -68,9 +68,12 @@ async def run() -> None:
     await init_db(settings)
 
     tz = ZoneInfo(settings.my_timezone)
+    from skeptiq.ingestors.rss import ACCEPT_HEADER, USER_AGENT
+
     rss_http = httpx.AsyncClient(
         timeout=httpx.Timeout(20.0),
-        headers={"User-Agent": "Skeptiq/0.1"},
+        headers={"User-Agent": USER_AGENT, "Accept": ACCEPT_HEADER},
+        follow_redirects=True,
     )
     binance_http = httpx.AsyncClient(timeout=httpx.Timeout(15.0))
 
