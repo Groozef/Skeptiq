@@ -93,9 +93,10 @@ class Recommendation(Base):
     direction: Mapped[str] = mapped_column(String(8))
     technical_context_json: Mapped[str] = mapped_column(Text)
     technical_alignment: Mapped[str] = mapped_column(String(16))
-    base_confidence: Mapped[float] = mapped_column(Float, default=0.0)
-    confidence_adjusted: Mapped[float] = mapped_column(Float, default=0.0)
-    confidence_adjustments_json: Mapped[str] = mapped_column(Text, default="[]")
+    # v0.2 calibration audit trail; nullable so v0.1 rows survive lightweight migration.
+    base_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    confidence_adjusted: Mapped[float | None] = mapped_column(Float, nullable=True)
+    confidence_adjustments_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     invalidation_level: Mapped[float | None] = mapped_column(Float, nullable=True)
     invalidation_kind: Mapped[str | None] = mapped_column(String(16), nullable=True)
     stop_loss: Mapped[float | None] = mapped_column(Float, nullable=True)
