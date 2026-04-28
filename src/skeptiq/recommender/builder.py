@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime
 
 from skeptiq.core.config import Settings
@@ -6,10 +7,14 @@ from skeptiq.core.logging import get_logger
 from skeptiq.core.models import IngestedItem
 from skeptiq.core.models import Recommendation as RecommendationORM
 from skeptiq.market.binance import BinanceClient
-from skeptiq.market.indicators import compute_technical_context
+from skeptiq.market.indicators import (
+    compute_invalidation_level,
+    compute_technical_context,
+)
 from skeptiq.schemas import (
     IMPACT_ORDER,
     Direction,
+    InvalidationKind,
     NewsAnalysis,
     Recommendation,
     TechnicalAlignment,
@@ -18,17 +23,75 @@ from skeptiq.schemas import (
 
 log = get_logger(__name__)
 
+# Penalty/bonus weights for confidence calibration. See adjust_confidence
+# for the reasoning behind each.
+PENALTY_ALIGNMENT_NEUTRAL = 0.08
+PENALTY_ALIGNMENT_CONTRADICTS = 0.15
+BONUS_ALIGNMENT_CONFIRMS = 0.05
+PENALTY_RSI_CONFLICT = 0.10
+RSI_CONFLICT_LONG_THRESHOLD = 65.0     # buying when RSI already > 65
+RSI_CONFLICT_SHORT_THRESHOLD = 35.0    # shorting when RSI already < 35
+CONFIDENCE_CAP = 0.95
+# Pre-fetch guard: if the LLM's raw confidence is so low that even with the
+# maximum possible bonus we'd still be below MIN_CONFIDENCE, skip Binance.
+MAX_POSSIBLE_BONUS = BONUS_ALIGNMENT_CONFIRMS
 
-def passes_filter(analysis: NewsAnalysis, settings: Settings) -> bool:
+
+def adjust_confidence(
+    base: float,
+    *,
+    direction: Direction,
+    alignment: TechnicalAlignment,
+    rsi: float,
+) -> tuple[float, list[str]]:
+    """Apply technical-conflict penalties / agreement bonuses to the LLM's
+    raw confidence. Returns (adjusted, audit_trail).
+
+    The reasoning:
+    - alignment=neutral: tech context didn't confirm the directional thesis,
+      so we have one fewer corroborating signal than if it had.
+    - alignment=contradicts: tech context actively argues against the thesis;
+      the LLM didn't have access to it, so we discount harder.
+    - alignment=confirms: small bonus, capped at 0.95 to avoid false certainty.
+    - RSI conflict: shorting at RSI<35 (near-oversold) or longing at RSI>65
+      (near-overbought) means we're entering against the local technical
+      reflex, which historically takes a few bars to play out.
+    """
+    adjusted = base
+    reasons: list[str] = []
+
+    if alignment == "neutral":
+        adjusted -= PENALTY_ALIGNMENT_NEUTRAL
+        reasons.append(f"alignment_neutral_-{PENALTY_ALIGNMENT_NEUTRAL:.2f}")
+    elif alignment == "contradicts":
+        adjusted -= PENALTY_ALIGNMENT_CONTRADICTS
+        reasons.append(f"alignment_contradicts_-{PENALTY_ALIGNMENT_CONTRADICTS:.2f}")
+    elif alignment == "confirms":
+        adjusted += BONUS_ALIGNMENT_CONFIRMS
+        reasons.append(f"alignment_confirms_+{BONUS_ALIGNMENT_CONFIRMS:.2f}")
+
+    if direction == "short" and rsi < RSI_CONFLICT_SHORT_THRESHOLD:
+        adjusted -= PENALTY_RSI_CONFLICT
+        reasons.append(f"rsi_oversold_for_short_-{PENALTY_RSI_CONFLICT:.2f}")
+    elif direction == "long" and rsi > RSI_CONFLICT_LONG_THRESHOLD:
+        adjusted -= PENALTY_RSI_CONFLICT
+        reasons.append(f"rsi_overbought_for_long_-{PENALTY_RSI_CONFLICT:.2f}")
+
+    return max(0.0, min(CONFIDENCE_CAP, adjusted)), reasons
+
+
+def passes_pre_filter(analysis: NewsAnalysis, settings: Settings) -> bool:
+    """Cheap checks that don't need market data — run BEFORE Binance fetch."""
     if not analysis.is_relevant:
         return False
     if analysis.sentiment == "neutral":
         return False
     if not (set(analysis.affected_tickers) & settings.watchlist_set):
         return False
-    if analysis.confidence < settings.min_confidence:
+    if IMPACT_ORDER[analysis.impact_magnitude] < IMPACT_ORDER[settings.min_impact]:
         return False
-    return IMPACT_ORDER[analysis.impact_magnitude] >= IMPACT_ORDER[settings.min_impact]
+    # If even the best-case bonus can't bring this above the threshold, bail.
+    return analysis.confidence + MAX_POSSIBLE_BONUS >= settings.min_confidence
 
 
 def direction_from_sentiment(sentiment: str) -> Direction:
@@ -61,6 +124,10 @@ def technical_alignment(direction: Direction, tc: TechnicalContext) -> Technical
     return technical_alignment_for_short(tc)
 
 
+# Backwards-compat for tests that still import passes_filter.
+passes_filter = passes_pre_filter
+
+
 class RecommendationBuilder:
     def __init__(self, *, settings: Settings, binance: BinanceClient) -> None:
         self._settings = settings
@@ -72,14 +139,14 @@ class RecommendationBuilder:
         analysis: NewsAnalysis,
         item: IngestedItem,
     ) -> list[Recommendation]:
-        if not passes_filter(analysis, self._settings):
+        if not passes_pre_filter(analysis, self._settings):
             log.debug(
-                "recommendation_filtered_out",
+                "recommendation_pre_filter_dropped",
                 item_id=item.id,
                 relevant=analysis.is_relevant,
                 sentiment=analysis.sentiment,
                 impact=analysis.impact_magnitude,
-                confidence=round(analysis.confidence, 2),
+                base_confidence=round(analysis.confidence, 2),
                 tickers=analysis.affected_tickers,
             )
             return []
@@ -93,6 +160,9 @@ class RecommendationBuilder:
             try:
                 klines = await self._binance.fetch_klines(ticker)
                 tc = compute_technical_context(ticker, klines)
+                invalidation_level, invalidation_kind = compute_invalidation_level(
+                    direction, klines
+                )
             except Exception as exc:
                 log.warning(
                     "tech_context_failed",
@@ -101,18 +171,44 @@ class RecommendationBuilder:
                 )
                 continue
 
+            alignment = technical_alignment(direction, tc)
+            adjusted, adjustments = adjust_confidence(
+                analysis.confidence,
+                direction=direction,
+                alignment=alignment,
+                rsi=tc.rsi_14,
+            )
+
+            if adjusted < self._settings.min_confidence:
+                log.info(
+                    "recommendation_post_adjust_dropped",
+                    item_id=item.id,
+                    ticker=ticker,
+                    base=round(analysis.confidence, 2),
+                    adjusted=round(adjusted, 2),
+                    min_required=self._settings.min_confidence,
+                    alignment=alignment,
+                    rsi=round(tc.rsi_14, 1),
+                    adjustments=adjustments,
+                )
+                continue
+
             recs.append(
                 Recommendation(
                     ticker=ticker,
                     direction=direction,
-                    confidence=analysis.confidence,
+                    confidence=adjusted,
+                    base_confidence=analysis.confidence,
+                    confidence_adjustments=adjustments,
                     impact=analysis.impact_magnitude,
                     horizon=analysis.time_horizon,
                     summary=analysis.summary,
                     directional_arguments=list(analysis.key_points),
                     counter_signals=list(analysis.counter_signals),
                     technical_context=tc,
-                    technical_alignment=technical_alignment(direction, tc),
+                    technical_alignment=alignment,
+                    invalidation_level=invalidation_level,
+                    invalidation_kind=invalidation_kind,
                     source_url=item.url,
                     source_name=item.source,
                     detected_at=detected_at,
@@ -134,6 +230,11 @@ class RecommendationBuilder:
             direction=recommendation.direction,
             technical_context_json=recommendation.technical_context.model_dump_json(),
             technical_alignment=recommendation.technical_alignment,
+            base_confidence=recommendation.base_confidence,
+            confidence_adjusted=recommendation.confidence,
+            confidence_adjustments_json=json.dumps(recommendation.confidence_adjustments),
+            invalidation_level=recommendation.invalidation_level,
+            invalidation_kind=recommendation.invalidation_kind,
             telegram_message_id=telegram_message_id,
             price_at_send=recommendation.technical_context.price,
         )

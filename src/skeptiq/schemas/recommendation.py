@@ -8,12 +8,26 @@ from skeptiq.schemas.technical import TechnicalContext
 
 Direction = Literal["long", "short"]
 TechnicalAlignment = Literal["confirms", "neutral", "contradicts"]
+InvalidationKind = Literal["swing_low", "swing_high", "atr_2_5x"]
 
 
 class Recommendation(BaseModel):
     ticker: str
     direction: Direction
-    confidence: float = Field(ge=0.0, le=1.0)
+    confidence: float = Field(
+        ge=0.0,
+        le=1.0,
+        description="Calibrated confidence after technical adjustments.",
+    )
+    base_confidence: float = Field(
+        ge=0.0,
+        le=1.0,
+        description="Raw confidence from the LLM analysis, before tech adjustments.",
+    )
+    confidence_adjustments: list[str] = Field(
+        description="Audit trail of penalties/bonuses applied to base_confidence "
+        "(e.g. 'alignment_neutral_-0.08', 'rsi_oversold_for_short_-0.10').",
+    )
     impact: ImpactMagnitude
     horizon: TimeHorizon
     summary: str
@@ -24,6 +38,15 @@ class Recommendation(BaseModel):
     counter_signals: list[str] = Field(min_length=1)
     technical_context: TechnicalContext
     technical_alignment: TechnicalAlignment
+    invalidation_level: float = Field(
+        gt=0,
+        description="Price level that would invalidate the directional thesis. "
+        "For longs: lower bound; for shorts: upper bound. Not a trading stop.",
+    )
+    invalidation_kind: InvalidationKind = Field(
+        description="Which constraint produced the invalidation level: "
+        "swing_low/high (price-action) or atr_2_5x (volatility-based).",
+    )
     source_url: str
     source_name: str
     detected_at: datetime

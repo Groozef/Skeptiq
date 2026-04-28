@@ -35,8 +35,28 @@ def format_message(rec: Recommendation, *, tz: ZoneInfo) -> str:
     why_label = "Why bullish" if rec.direction == "long" else "Why bearish"
 
     confidence_pct = round(rec.confidence * 100)
+    base_pct = round(rec.base_confidence * 100)
+    delta_pp = confidence_pct - base_pct
+    if delta_pp == 0:
+        confidence_str = f"{confidence_pct}%"
+    elif delta_pp > 0:
+        confidence_str = f"{confidence_pct}% \\(\\+{delta_pp} from base\\)"
+    else:
+        confidence_str = f"{confidence_pct}% \\({delta_pp} from base\\)"
+
     tc = rec.technical_context
     symbol = f"{tc.ticker.upper()}USDT"
+
+    invalidation_pct = (
+        (rec.invalidation_level - tc.price) / tc.price * 100.0 if tc.price else 0.0
+    )
+    invalidation_label = "Invalid below" if rec.direction == "long" else "Invalid above"
+    invalidation_kind_label = {
+        "swing_low": "swing low",
+        "swing_high": "swing high",
+        "atr_2_5x": "ATR×2\\.5",
+    }.get(rec.invalidation_kind, rec.invalidation_kind)
+    invalidation_sign = "+" if invalidation_pct >= 0 else ""
 
     sign_24h = "+" if tc.change_24h_pct >= 0 else ""
     spike_glyph = "✅" if tc.volume_spike else "❌"  # ✅ / ❌
@@ -55,10 +75,13 @@ def format_message(rec: Recommendation, *, tz: ZoneInfo) -> str:
     chg_str = f"{sign_24h}{tc.change_24h_pct:.2f}%"
     vol_str = f"{tc.volume_ratio:.1f}×"  # ×
 
+    invalidation_price_str = f"{rec.invalidation_level:,.2f}"
+    invalidation_pct_str = f"{invalidation_sign}{invalidation_pct:.2f}%"
+
     lines = [
         f"{direction_emoji} *{direction_word} signal — {_md(rec.ticker)}*",
         (
-            f"Confidence: {confidence_pct}% · "
+            f"Confidence: {confidence_str} · "
             f"Impact: {_md(rec.impact.upper())} · "
             f"Horizon: {_md(rec.horizon)}"
         ),
@@ -83,6 +106,10 @@ def format_message(rec: Recommendation, *, tz: ZoneInfo) -> str:
             f"Above EMA20: {above_glyph}"
         ),
         f"Alignment: {align_glyph} {_md(rec.technical_alignment)}",
+        (
+            f"{invalidation_label}: ${_md(invalidation_price_str)} "
+            f"\\({_md(invalidation_pct_str)}, {invalidation_kind_label}\\)"
+        ),
         "",
         f"\U0001f4f0 [{_md(rec.source_name)}]({_md_url(rec.source_url)})",
         f"\U0001f550 Detected: {_md(detected_str)} \\({_md(tz_label)}\\)",

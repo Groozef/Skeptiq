@@ -7,6 +7,7 @@ from skeptiq.schemas.analysis import (
 )
 from skeptiq.schemas.recommendation import (
     Direction,
+    InvalidationKind,
     Recommendation,
     TechnicalAlignment,
 )
@@ -16,6 +17,7 @@ __all__ = [
     "IMPACT_ORDER",
     "Direction",
     "ImpactMagnitude",
+    "InvalidationKind",
     "NewsAnalysis",
     "Recommendation",
     "RsiState",

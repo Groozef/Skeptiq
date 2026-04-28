@@ -1,3 +1,5 @@
+from typing import Literal
+
 import pandas as pd
 import pandas_ta as ta
 
@@ -8,6 +10,11 @@ VOLUME_SPIKE_THRESHOLD = 2.0
 VOLUME_AVG_WINDOW = 20
 EMA_WINDOW = 20
 RSI_LENGTH = 14
+ATR_LENGTH = 14
+SWING_LOOKBACK = 24  # hourly candles -> last 24h
+ATR_MULTIPLE = 2.5
+
+InvalidationKind = Literal["swing_low", "swing_high", "atr_2_5x"]
 
 
 def klines_to_df(klines: list[Kline]) -> pd.DataFrame:
@@ -60,3 +67,42 @@ def compute_technical_context(ticker: str, klines: list[Kline]) -> TechnicalCont
         change_24h_pct=change_24h_pct,
         volume_ratio=volume_ratio,
     )
+
+
+def compute_invalidation_level(
+    direction: Literal["long", "short"],
+    klines: list[Kline],
+) -> tuple[float, InvalidationKind]:
+    """Compute the price level that would invalidate the directional thesis.
+
+    For longs: the higher of (recent swing low) and (entry - 2.5×ATR).
+              "Higher" = tighter stop, so we don't sit through random noise.
+    For shorts: the lower of (recent swing high) and (entry + 2.5×ATR).
+
+    Returns (level, kind) where kind names which constraint actually bound.
+    Caller is responsible for showing this as a *thesis-invalidation* level,
+    not a recommended trading stop-loss.
+    """
+    df = klines_to_df(klines)
+    closes = df["close"]
+    highs = df["high"]
+    lows = df["low"]
+
+    atr_series = ta.atr(highs, lows, closes, length=ATR_LENGTH)
+    atr = float(atr_series.iloc[-1])
+    last_close = float(closes.iloc[-1])
+
+    lookback = min(SWING_LOOKBACK, len(klines))
+
+    if direction == "long":
+        swing_low = float(lows.iloc[-lookback:].min())
+        atr_stop = last_close - ATR_MULTIPLE * atr
+        if swing_low >= atr_stop:
+            return swing_low, "swing_low"
+        return atr_stop, "atr_2_5x"
+
+    swing_high = float(highs.iloc[-lookback:].max())
+    atr_stop = last_close + ATR_MULTIPLE * atr
+    if swing_high <= atr_stop:
+        return swing_high, "swing_high"
+    return atr_stop, "atr_2_5x"

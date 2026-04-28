@@ -93,6 +93,11 @@ class Recommendation(Base):
     direction: Mapped[str] = mapped_column(String(8))
     technical_context_json: Mapped[str] = mapped_column(Text)
     technical_alignment: Mapped[str] = mapped_column(String(16))
+    base_confidence: Mapped[float] = mapped_column(Float, default=0.0)
+    confidence_adjusted: Mapped[float] = mapped_column(Float, default=0.0)
+    confidence_adjustments_json: Mapped[str] = mapped_column(Text, default="[]")
+    invalidation_level: Mapped[float | None] = mapped_column(Float, nullable=True)
+    invalidation_kind: Mapped[str | None] = mapped_column(String(16), nullable=True)
     sent_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=_utcnow,
