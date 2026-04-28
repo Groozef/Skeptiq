@@ -77,6 +77,14 @@ class BinanceClient:
         raw = resp.json()
         klines = [_parse_kline(row) for row in raw]
 
+        # Binance includes the still-building current bar in /klines responses.
+        # Its volume is whatever-has-traded-so-far (often a few percent of the
+        # 1h average), which silently breaks volume_ratio computation. Drop it
+        # so indicators only ever see closed candles.
+        now_ms = int(time.time() * 1000)
+        if klines and klines[-1].close_time_ms > now_ms:
+            klines = klines[:-1]
+
         async with self._lock:
             self._cache[key] = _CacheEntry(
                 fetched_at_monotonic=now,
@@ -126,7 +134,13 @@ class BinanceClient:
         rows = resp.json()
         if not rows:
             return None
-        return _parse_kline(rows[0])
+        kline = _parse_kline(rows[0])
+        # Defensive: if the queried target falls inside the in-progress bar,
+        # Binance returns it; treat as not-yet-available so callers retry later.
+        now_ms = int(time.time() * 1000)
+        if kline.close_time_ms > now_ms:
+            return None
+        return kline
 
     async def aclose(self) -> None:
         if self._owns_http:
