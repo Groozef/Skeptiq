@@ -1,6 +1,7 @@
 import asyncio
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 import httpx
@@ -82,6 +83,50 @@ class BinanceClient:
                 klines=klines,
             )
         return klines
+
+    async def fetch_kline_at(
+        self,
+        ticker: str,
+        target_dt: datetime,
+        *,
+        interval: str = "1h",
+    ) -> Kline | None:
+        """Fetch the single kline whose open_time is at-or-just-after target_dt.
+
+        Used for hit-rate tracking — given a recommendation sent at T, we want
+        the close price at T+1h, T+6h, T+24h. Returns None if Binance has no
+        kline yet (target_dt is in the future or beyond the symbol's history).
+
+        Bypasses the rolling cache because each historical query is unique per
+        (symbol, target_ms) and the rolling cache is keyed for the
+        always-most-recent batch.
+        """
+        symbol = self._symbol(ticker)
+        start_ms = int(target_dt.timestamp() * 1000)
+        try:
+            resp = await self._http.get(
+                BINANCE_KLINES_URL,
+                params={
+                    "symbol": symbol,
+                    "interval": interval,
+                    "startTime": start_ms,
+                    "limit": 1,
+                },
+            )
+            resp.raise_for_status()
+        except httpx.HTTPError as exc:
+            log.warning(
+                "binance_kline_at_fetch_failed",
+                symbol=symbol,
+                target_dt=target_dt.isoformat(),
+                error=str(exc),
+            )
+            raise
+
+        rows = resp.json()
+        if not rows:
+            return None
+        return _parse_kline(rows[0])
 
     async def aclose(self) -> None:
         if self._owns_http:
