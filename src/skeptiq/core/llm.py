@@ -51,6 +51,10 @@ class LlmClient:
         self._raw = AsyncAnthropic(api_key=settings.anthropic_api_key)
         self._client = instructor.from_anthropic(self._raw)
 
+    @property
+    def model(self) -> str:
+        return self._settings.llm_model
+
     async def analyze[T: BaseModel](
         self,
         *,
