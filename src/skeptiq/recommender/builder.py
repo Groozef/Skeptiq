@@ -35,6 +35,24 @@ CONFIDENCE_CAP = 0.95
 # maximum possible bonus we'd still be below MIN_CONFIDENCE, skip Binance.
 MAX_POSSIBLE_BONUS = BONUS_ALIGNMENT_CONFIRMS
 
+# Take-profit distance is a fixed multiple of the stop-loss distance.
+# 2.0 = 1:2 risk-reward (lose 1 unit on SL, win 2 units on TP).
+TAKE_PROFIT_RR_MULTIPLE = 2.0
+
+
+def compute_stop_loss_take_profit(
+    *,
+    direction: Direction,
+    entry: float,
+    invalidation_level: float,
+) -> tuple[float, float]:
+    """SL = invalidation level (the thesis is mechanically dead beyond it).
+    TP = entry +/- 2 × |entry - SL| (fixed 1:2 R:R)."""
+    risk = abs(entry - invalidation_level)
+    if direction == "long":
+        return invalidation_level, entry + TAKE_PROFIT_RR_MULTIPLE * risk
+    return invalidation_level, entry - TAKE_PROFIT_RR_MULTIPLE * risk
+
 
 def adjust_confidence(
     base: float,
@@ -192,6 +210,12 @@ class RecommendationBuilder:
                 )
                 continue
 
+            stop_loss, take_profit = compute_stop_loss_take_profit(
+                direction=direction,
+                entry=tc.price,
+                invalidation_level=invalidation_level,
+            )
+
             recs.append(
                 Recommendation(
                     ticker=ticker,
@@ -208,6 +232,8 @@ class RecommendationBuilder:
                     technical_alignment=alignment,
                     invalidation_level=invalidation_level,
                     invalidation_kind=invalidation_kind,
+                    stop_loss=stop_loss,
+                    take_profit=take_profit,
                     source_url=item.url,
                     source_name=item.source,
                     detected_at=detected_at,
@@ -234,6 +260,8 @@ class RecommendationBuilder:
             confidence_adjustments_json=json.dumps(recommendation.confidence_adjustments),
             invalidation_level=recommendation.invalidation_level,
             invalidation_kind=recommendation.invalidation_kind,
+            stop_loss=recommendation.stop_loss,
+            take_profit=recommendation.take_profit,
             telegram_message_id=telegram_message_id,
             price_at_send=recommendation.technical_context.price,
         )

@@ -41,11 +41,21 @@ class Recommendation(BaseModel):
     invalidation_level: float = Field(
         gt=0,
         description="Price level that would invalidate the directional thesis. "
-        "For longs: lower bound; for shorts: upper bound. Not a trading stop.",
+        "For longs: lower bound; for shorts: upper bound.",
     )
     invalidation_kind: InvalidationKind = Field(
         description="Which constraint produced the invalidation level: "
         "swing_low/high (price-action) or atr_2_5x (volatility-based).",
+    )
+    stop_loss: float = Field(
+        gt=0,
+        description="Suggested stop-loss level (= invalidation_level). "
+        "Beyond it, the directional thesis is no longer supported.",
+    )
+    take_profit: float = Field(
+        gt=0,
+        description="Suggested take-profit level at fixed 1:2 risk-reward "
+        "(distance from entry to TP = 2x distance from entry to SL).",
     )
     source_url: str
     source_name: str

@@ -115,7 +115,7 @@ async def test_build_emits_one_rec_per_watchlist_ticker(
         "BTC": _tc(60, above_ema=True, volume_spike=True),
         "ETH": _tc(45, above_ema=False, volume_spike=False),
     }
-    invalidations = {
+    invalidations: dict[str, tuple[float, str]] = {
         "BTC": (68_500.0, "swing_low"),
         "ETH": (3_100.0, "atr_2_5x"),
     }
@@ -184,5 +184,12 @@ async def test_build_emits_one_rec_per_watchlist_ticker(
     assert btc.confidence == pytest.approx(0.75)
     assert btc.base_confidence == pytest.approx(0.7)
     assert any("alignment_confirms" in adj for adj in btc.confidence_adjustments)
+
+    # SL = invalidation level; TP at 1:2 R:R from entry (70_000)
+    btc_entry = btc.technical_context.price
+    btc_risk = btc_entry - btc.stop_loss
+    btc_reward = btc.take_profit - btc_entry
+    assert btc.stop_loss == pytest.approx(68_500.0)
+    assert btc_reward == pytest.approx(2 * btc_risk)
 
     await binance.aclose()
