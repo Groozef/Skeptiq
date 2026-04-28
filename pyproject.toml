@@ -74,6 +74,8 @@ ignore = [
 "src/skeptiq/market/indicators.py" = ["RUF002"]
 "src/skeptiq/recommender/builder.py" = ["RUF002"]
 "src/skeptiq/schemas/recommendation.py" = ["RUF002"]
+# CLI subcommands run once and exit; sync filesystem I/O is fine.
+"src/skeptiq/cli/journal.py" = ["ASYNC240"]
 
 [tool.mypy]
 python_version = "3.12"
