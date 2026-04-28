@@ -86,6 +86,7 @@ async def run() -> None:
         bot_token=settings.telegram_bot_token,
         chat_id=settings.my_telegram_chat_id,
         tz=tz,
+        language=settings.message_language,
     )
     tracker = HitRateTracker(binance=binance)
 

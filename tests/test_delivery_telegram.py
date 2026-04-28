@@ -48,6 +48,8 @@ def _sample_rec() -> Recommendation:
         technical_alignment="confirms",
         invalidation_level=68_500.00,
         invalidation_kind="swing_low",
+        stop_loss=68_500.00,
+        take_profit=76_721.65,  # entry + 2 × (entry - SL)
         source_url="https://example.com/x?a=1&b=2",
         source_name="CoinDesk",
         detected_at=datetime(2026, 4, 28, 14, 32, tzinfo=UTC),
@@ -66,9 +68,13 @@ def test_format_message_long_renders_expected_sections() -> None:
     # 14:32 UTC -> 19:32 in Asia/Almaty (UTC+5)
     assert "19:32" in msg
     assert r"71,240\.55" in msg
-    # invalidation line
+    # invalidation + SL/TP + disclaimer
     assert "Invalid below" in msg
     assert "swing low" in msg
+    assert "Stop loss" in msg
+    assert "Take profit" in msg
+    assert "R:R 1:2" in msg
+    assert "Educational/informational" in msg
 
 
 def test_format_message_short_uses_bearish_label_and_invalid_above() -> None:
@@ -77,6 +83,8 @@ def test_format_message_short_uses_bearish_label_and_invalid_above() -> None:
             "direction": "short",
             "invalidation_level": 73_500.00,
             "invalidation_kind": "atr_2_5x",
+            "stop_loss": 73_500.00,
+            "take_profit": 66_721.65,  # 71,240 - 2*(73,500-71,240)
         }
     )
     msg = format_message(rec, tz=ZoneInfo("UTC"))
@@ -105,3 +113,41 @@ def test_format_message_no_calibration_note_when_no_delta() -> None:
     msg = format_message(rec, tz=ZoneInfo("UTC"))
     assert "Confidence: 78%" in msg
     assert "from base" not in msg
+
+
+def test_format_message_russian_translates_static_labels() -> None:
+    msg = format_message(_sample_rec(), tz=ZoneInfo("UTC"), language="ru")
+    # signal header / sections / fields
+    assert "LONG сигнал" in msg
+    assert "Уверенность:" in msg
+    assert "Сила:" in msg
+    assert "Горизонт:" in msg
+    assert "Что произошло:" in msg
+    assert "Почему вверх:" in msg
+    assert "Контр\\-аргументы:" in msg
+    assert "Тех\\. контекст" in msg
+    assert "Тезис мёртв ниже" in msg
+    assert "Стоп\\-лосс" in msg
+    assert "Тейк\\-профит" in msg
+    assert "Получено:" in msg
+    assert "Образовательная информация" in msg
+    # English labels should be gone
+    assert "LONG signal" not in msg
+    assert "Confidence:" not in msg
+    assert "Stop loss:" not in msg
+
+
+def test_format_message_short_russian_says_pochemu_vniz() -> None:
+    rec = _sample_rec().model_copy(
+        update={
+            "direction": "short",
+            "invalidation_level": 73_500.00,
+            "invalidation_kind": "atr_2_5x",
+            "stop_loss": 73_500.00,
+            "take_profit": 66_721.65,
+        }
+    )
+    msg = format_message(rec, tz=ZoneInfo("UTC"), language="ru")
+    assert "SHORT сигнал" in msg
+    assert "Почему вниз:" in msg
+    assert "Тезис мёртв выше" in msg
