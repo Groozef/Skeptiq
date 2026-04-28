@@ -115,18 +115,41 @@ async def test_build_emits_one_rec_per_watchlist_ticker(
         "BTC": _tc(60, above_ema=True, volume_spike=True),
         "ETH": _tc(45, above_ema=False, volume_spike=False),
     }
+    invalidations = {
+        "BTC": (68_500.0, "swing_low"),
+        "ETH": (3_100.0, "atr_2_5x"),
+    }
 
     async def _fake_fetch(self: Any, ticker: str, **_kw: Any) -> list[Any]:
-        return [object()]  # placeholder; compute_technical_context is patched too.
+        return [object()]  # placeholder; compute_* are patched
 
-    def _fake_compute(ticker: str, _klines: list[Any]) -> TechnicalContext:
+    def _fake_compute_tech(ticker: str, _klines: list[Any]) -> TechnicalContext:
         return contexts[ticker]
+
+    def _fake_compute_invalidation(
+        direction: str, _klines: list[Any]
+    ) -> tuple[float, str]:
+        # The harness only runs one direction per build call, so we look up by
+        # whichever ticker is in flight via the patched tech-context call order.
+        # Simpler: pick BTC then ETH as they're called in sorted order.
+        # We track via a side effect.
+        ticker = next(iter(_fake_compute_invalidation._queue))
+        _fake_compute_invalidation._queue.popleft()
+        return invalidations[ticker]
+
+    from collections import deque
+
+    _fake_compute_invalidation._queue = deque(["BTC", "ETH"])  # type: ignore[attr-defined]
 
     monkeypatch.setattr(
         "skeptiq.market.binance.BinanceClient.fetch_klines", _fake_fetch
     )
     monkeypatch.setattr(
-        "skeptiq.recommender.builder.compute_technical_context", _fake_compute
+        "skeptiq.recommender.builder.compute_technical_context", _fake_compute_tech
+    )
+    monkeypatch.setattr(
+        "skeptiq.recommender.builder.compute_invalidation_level",
+        _fake_compute_invalidation,
     )
 
     from skeptiq.market.binance import BinanceClient
@@ -154,5 +177,12 @@ async def test_build_emits_one_rec_per_watchlist_ticker(
     assert eth.technical_alignment == "confirms"
     assert btc.directional_arguments == ["a", "b"]
     assert btc.counter_signals == ["c"]
+    assert btc.invalidation_level == 68_500.0
+    assert btc.invalidation_kind == "swing_low"
+    assert eth.invalidation_kind == "atr_2_5x"
+    # confirms alignment -> +0.05 bonus (but cap at 0.95). base 0.7 -> 0.75.
+    assert btc.confidence == pytest.approx(0.75)
+    assert btc.base_confidence == pytest.approx(0.7)
+    assert any("alignment_confirms" in adj for adj in btc.confidence_adjustments)
 
     await binance.aclose()

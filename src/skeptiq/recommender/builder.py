@@ -14,7 +14,6 @@ from skeptiq.market.indicators import (
 from skeptiq.schemas import (
     IMPACT_ORDER,
     Direction,
-    InvalidationKind,
     NewsAnalysis,
     Recommendation,
     TechnicalAlignment,

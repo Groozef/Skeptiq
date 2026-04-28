@@ -42,7 +42,8 @@ def format_message(rec: Recommendation, *, tz: ZoneInfo) -> str:
     elif delta_pp > 0:
         confidence_str = f"{confidence_pct}% \\(\\+{delta_pp} from base\\)"
     else:
-        confidence_str = f"{confidence_pct}% \\({delta_pp} from base\\)"
+        # delta is negative -> '-' is a MarkdownV2 special, escape it.
+        confidence_str = f"{confidence_pct}% \\(\\{delta_pp} from base\\)"
 
     tc = rec.technical_context
     symbol = f"{tc.ticker.upper()}USDT"

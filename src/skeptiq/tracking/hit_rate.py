@@ -72,11 +72,11 @@ class HitRateTracker:
         threshold = now - timedelta(hours=tier.hours)
 
         async with session_scope() as session:
-            stmt = select(RecommendationORM).where(
+            select_stmt = select(RecommendationORM).where(
                 RecommendationORM.sent_at <= threshold,
                 getattr(RecommendationORM, tier.price_column).is_(None),
             )
-            recs = list((await session.execute(stmt)).scalars().all())
+            recs = list((await session.execute(select_stmt)).scalars().all())
 
         if not recs:
             return
@@ -105,35 +105,46 @@ class HitRateTracker:
                 continue
 
             close = kline.close
-            updates: dict[str, object] = {tier.price_column: close}
+            pct_move: float | None = None
+            direction_correct: bool | None = None
 
             if tier.is_outcome_tier and rec.price_at_send:
-                pct = (close - rec.price_at_send) / rec.price_at_send * 100.0
-                updates["pct_move_24h"] = pct
+                pct_move = (close - rec.price_at_send) / rec.price_at_send * 100.0
                 if rec.direction == "long":
-                    updates["direction_correct_24h"] = pct > 0
+                    direction_correct = pct_move > 0
                 elif rec.direction == "short":
-                    updates["direction_correct_24h"] = pct < 0
+                    direction_correct = pct_move < 0
 
             async with session_scope() as session:
-                await session.execute(
-                    update(RecommendationORM)
-                    .where(RecommendationORM.id == rec.id)
-                    .values(**updates)
+                update_stmt = update(RecommendationORM).where(
+                    RecommendationORM.id == rec.id
                 )
+                if tier.is_outcome_tier:
+                    await session.execute(
+                        update_stmt.values(
+                            **{tier.price_column: close},
+                            pct_move_24h=pct_move,
+                            direction_correct_24h=direction_correct,
+                        )
+                    )
+                else:
+                    await session.execute(
+                        update_stmt.values(**{tier.price_column: close})
+                    )
 
+            extras = (
+                {
+                    "pct_move_24h": round(pct_move, 3) if pct_move is not None else None,
+                    "direction_correct_24h": direction_correct,
+                }
+                if tier.is_outcome_tier
+                else {}
+            )
             log.info(
                 "hit_rate_filled",
                 rec_id=rec.id,
                 ticker=rec.ticker,
                 tier_hours=tier.hours,
                 close=round(close, 4),
-                **(
-                    {
-                        "pct_move_24h": round(updates["pct_move_24h"], 3),  # type: ignore[arg-type]
-                        "direction_correct_24h": updates.get("direction_correct_24h"),
-                    }
-                    if tier.is_outcome_tier
-                    else {}
-                ),
+                **extras,
             )
