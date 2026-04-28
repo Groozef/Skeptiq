@@ -101,12 +101,23 @@ FIELD GUIDANCE
 
 7. summary - 1 to 2 sentences. State what happened. No interpretation here.
 
-8. reasoning - 3 to 5 sentences. Explain how you arrived at sentiment AND
+8. key_points - 2 to 5 specific bullet points that support your directional
+   call (the bullets that would be shown to the trader as "Why bullish" or
+   "Why bearish"). Each bullet MUST be concrete:
+   - cite a specific fact stated in the news (numbers, named parties, dates)
+   - or reference a clear historical precedent or mechanism
+   - or name a concrete second-order effect with reasoning
+   Bad bullet: "positive for the market". Good bullet: "ETF inflows of this
+   size historically preceded multi-day risk-on moves in BTC".
+   For sentiment=neutral, list 2-3 points that explain why the news is
+   genuinely ambiguous (factors pulling each way).
+
+9. reasoning - 3 to 5 sentences. Explain how you arrived at sentiment AND
    impact. Reference the rubric tier you used. Cite the strongest single
    piece of evidence in the news that drove your call. Acknowledge any
    ambiguity.
 
-9. counter_signals - a list of >= 1 concrete counter-argument or risk to
+10. counter_signals - a list of >= 1 concrete counter-argument or risk to
    your own call. MANDATORY; even for very_bullish or very_bearish you MUST
    surface at least one credible disconfirming consideration.
    Useful kinds of counter-signals:
