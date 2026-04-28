@@ -110,7 +110,8 @@ def _entry_datetime(entry: Any) -> datetime:
     for key in ("published_parsed", "updated_parsed"):
         st = entry.get(key)
         if st is not None:
-            return datetime(*st[:6], tzinfo=UTC)
+            year, month, day, hour, minute, second = st[:6]
+            return datetime(year, month, day, hour, minute, second, tzinfo=UTC)
     for key in ("published", "updated"):
         raw = entry.get(key)
         if raw:

@@ -16,18 +16,18 @@ from skeptiq.schemas import NewsAnalysis, TechnicalContext
 
 
 def _analysis(**overrides: Any) -> NewsAnalysis:
-    base = dict(
-        is_relevant=True,
-        affected_tickers=["BTC"],
-        sentiment="bullish",
-        impact_magnitude="high",
-        confidence=0.7,
-        time_horizon="hours",
-        summary="x",
-        key_points=["a", "b"],
-        reasoning="r " * 5,
-        counter_signals=["c"],
-    )
+    base: dict[str, Any] = {
+        "is_relevant": True,
+        "affected_tickers": ["BTC"],
+        "sentiment": "bullish",
+        "impact_magnitude": "high",
+        "confidence": 0.7,
+        "time_horizon": "hours",
+        "summary": "x",
+        "key_points": ["a", "b"],
+        "reasoning": "r " * 5,
+        "counter_signals": ["c"],
+    }
     base.update(overrides)
     return NewsAnalysis.model_validate(base)
 

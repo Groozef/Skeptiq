@@ -28,9 +28,7 @@ def passes_filter(analysis: NewsAnalysis, settings: Settings) -> bool:
         return False
     if analysis.confidence < settings.min_confidence:
         return False
-    if IMPACT_ORDER[analysis.impact_magnitude] < IMPACT_ORDER[settings.min_impact]:
-        return False
-    return True
+    return IMPACT_ORDER[analysis.impact_magnitude] >= IMPACT_ORDER[settings.min_impact]
 
 
 def direction_from_sentiment(sentiment: str) -> Direction:

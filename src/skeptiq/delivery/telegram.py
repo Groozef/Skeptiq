@@ -34,7 +34,7 @@ def format_message(rec: Recommendation, *, tz: ZoneInfo) -> str:
     direction_word = "LONG" if rec.direction == "long" else "SHORT"
     why_label = "Why bullish" if rec.direction == "long" else "Why bearish"
 
-    confidence_pct = int(round(rec.confidence * 100))
+    confidence_pct = round(rec.confidence * 100)
     tc = rec.technical_context
     symbol = f"{tc.ticker.upper()}USDT"
 

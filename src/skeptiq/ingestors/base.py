@@ -78,7 +78,8 @@ class BaseIngestor(abc.ABC):
                     )
                 )
                 result = await session.execute(stmt)
-                if result.rowcount and result.rowcount > 0:
+                rowcount = getattr(result, "rowcount", 0) or 0
+                if rowcount > 0:
                     new_count += 1
 
         log.info(
@@ -88,5 +89,5 @@ class BaseIngestor(abc.ABC):
             new=new_count,
         )
 
-    async def aclose(self) -> None:
+    async def aclose(self) -> None:  # noqa: B027  (default no-op; subclass may override)
         """Override to release client resources (HTTP, etc.)."""

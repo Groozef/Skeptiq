@@ -117,10 +117,10 @@ async def run() -> None:
 
 
 def cli() -> None:
-    try:
+    import contextlib
+
+    with contextlib.suppress(KeyboardInterrupt):
         asyncio.run(run())
-    except KeyboardInterrupt:
-        pass
 
 
 if __name__ == "__main__":
