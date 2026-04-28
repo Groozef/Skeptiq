@@ -12,6 +12,7 @@ from skeptiq.delivery.telegram import TelegramSender
 from skeptiq.ingestors.rss import DEFAULT_FEEDS, RssIngestor
 from skeptiq.market.binance import BinanceClient
 from skeptiq.recommender.builder import RecommendationBuilder
+from skeptiq.tracking.hit_rate import HitRateTracker
 
 PROCESSOR_INTERVAL_SEC = 5
 PENDING_BATCH_SIZE = 10
@@ -86,6 +87,7 @@ async def run() -> None:
         chat_id=settings.my_telegram_chat_id,
         tz=tz,
     )
+    tracker = HitRateTracker(binance=binance)
 
     ingestors = [
         RssIngestor(
@@ -108,6 +110,7 @@ async def run() -> None:
                 ),
                 name="processor",
             )
+            tg.create_task(tracker.run(), name="tracker.hit_rate")
     finally:
         log.info("shutdown_starting")
         await sender.aclose()
