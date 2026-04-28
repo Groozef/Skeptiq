@@ -15,6 +15,8 @@ log = get_logger(__name__)
 _MD_V2_SPECIALS = re.compile(r"([_*\[\]()~`>#+\-=|{}.!\\])")
 _ALIGNMENT_GLYPH: dict[str, str] = {
     "confirms": "✅",
+    "mixed": "➖",
+    # legacy v0.2.0 stored "neutral"; keep mapping for historical journal renders.
     "neutral": "➖",
     "contradicts": "⚠️",
 }

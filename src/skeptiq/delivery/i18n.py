@@ -35,7 +35,8 @@ _LABELS: dict[Language, dict[str, str]] = {
         "detected": "Detected",
         # alignment values
         "align_confirms": "confirms",
-        "align_neutral": "neutral",
+        "align_mixed": "mixed",
+        "align_neutral": "mixed",  # legacy v0.2.0 → display as mixed
         "align_contradicts": "contradicts",
         # invalidation kinds
         "kind_swing_low": "swing low",
@@ -84,7 +85,8 @@ _LABELS: dict[Language, dict[str, str]] = {
         "rr": "R:R 1:2",
         "detected": "Получено",
         "align_confirms": "подтверждает",
-        "align_neutral": "нейтрально",
+        "align_mixed": "смешанный",
+        "align_neutral": "смешанный",
         "align_contradicts": "противоречит",
         "kind_swing_low": "swing low",
         "kind_swing_high": "swing high",

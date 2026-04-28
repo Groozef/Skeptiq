@@ -28,9 +28,14 @@ log = get_logger(__name__)
 
 # Penalty/bonus weights for confidence calibration. See adjust_confidence
 # for the reasoning behind each.
-PENALTY_ALIGNMENT_NEUTRAL = 0.08
-PENALTY_ALIGNMENT_CONTRADICTS = 0.15
+# Notatki-5 changed the middle and contradicts magnitudes; the old single-
+# rule alignment logic flagged things confirms based on one factor, so
+# notatki suggested softer penalties to match the multi-factor read.
+PENALTY_ALIGNMENT_MIXED = 0.0
+PENALTY_ALIGNMENT_CONTRADICTS = 0.08  # was 0.15 in v0.2.0
 BONUS_ALIGNMENT_CONFIRMS = 0.05
+# Backwards-compat alias for any caller still passing "neutral".
+PENALTY_ALIGNMENT_NEUTRAL = PENALTY_ALIGNMENT_MIXED
 PENALTY_RSI_CONFLICT = 0.10
 RSI_CONFLICT_LONG_THRESHOLD = 65.0     # buying when RSI already > 65
 RSI_CONFLICT_SHORT_THRESHOLD = 35.0    # shorting when RSI already < 35
@@ -115,9 +120,15 @@ def adjust_confidence(
     adjusted = base
     reasons: list[str] = []
 
-    if alignment == "neutral":
-        adjusted -= PENALTY_ALIGNMENT_NEUTRAL
-        reasons.append(f"alignment_neutral_-{PENALTY_ALIGNMENT_NEUTRAL:.2f}")
+    if alignment in ("mixed", "neutral"):
+        # PENALTY_ALIGNMENT_MIXED is 0 in v0.2.1 — surface the audit entry
+        # only if the legacy "neutral" path is hit so old rows are still
+        # interpretable.
+        if alignment == "neutral":
+            adjusted -= PENALTY_ALIGNMENT_NEUTRAL
+            reasons.append(f"alignment_neutral_-{PENALTY_ALIGNMENT_NEUTRAL:.2f}")
+        else:
+            reasons.append("alignment_mixed_+0.00")
     elif alignment == "contradicts":
         adjusted -= PENALTY_ALIGNMENT_CONTRADICTS
         reasons.append(f"alignment_contradicts_-{PENALTY_ALIGNMENT_CONTRADICTS:.2f}")
@@ -181,30 +192,80 @@ def direction_from_sentiment(sentiment: str) -> Direction:
     return "long" if sentiment in ("very_bullish", "bullish") else "short"
 
 
-def technical_alignment_for_long(tc: TechnicalContext) -> TechnicalAlignment:
-    if tc.rsi_14 > 70:
-        return "contradicts"
-    if tc.rsi_14 < 50 and not tc.above_ema20:
-        return "confirms"
-    if tc.volume_spike and tc.above_ema20 and tc.rsi_14 <= 65:
-        return "confirms"
-    return "neutral"
+RSI_NEUTRAL_BAND_LO = 45.0
+RSI_NEUTRAL_BAND_HI = 55.0
+H24_NEUTRAL_BAND = 0.5  # %
 
 
-def technical_alignment_for_short(tc: TechnicalContext) -> TechnicalAlignment:
-    if tc.rsi_14 < 30:
-        return "contradicts"
-    if tc.rsi_14 > 50 and tc.above_ema20:
-        return "confirms"
-    if tc.volume_spike and not tc.above_ema20 and tc.rsi_14 >= 35:
-        return "confirms"
-    return "neutral"
+def alignment_score(direction: Direction, tc: TechnicalContext) -> int:
+    """Sum of {-1, 0, +1} contributions across 4 factors (notatki-5):
+
+      - RSI direction relative to 50.
+      - Price vs EMA20.
+      - 24h percent change.
+      - Volume spike, with direction inferred from 24h%.
+
+    For a LONG signal, "confirms" means: momentum up (RSI>55), price above
+    EMA20, recently rising (24h>+0.5%), and volume spiking on a green day.
+
+    For a SHORT signal, mirrored.
+
+    Score collapses to alignment label:
+      score >= +2  -> confirms
+      |score| <= 1 -> mixed
+      score <= -2  -> contradicts
+    """
+    score = 0
+    rsi = tc.rsi_14
+    chg = tc.change_24h_pct
+
+    # Helpers depending on direction.
+    sign = 1 if direction == "long" else -1
+
+    # 1. RSI vs 50.
+    if rsi > RSI_NEUTRAL_BAND_HI:
+        score += sign  # momentum-up: +1 for long, -1 for short
+    elif rsi < RSI_NEUTRAL_BAND_LO:
+        score -= sign
+
+    # 2. Price vs EMA20.
+    if tc.above_ema20:
+        score += sign
+    else:
+        score -= sign
+
+    # 3. 24h change.
+    if chg > H24_NEUTRAL_BAND:
+        score += sign
+    elif chg < -H24_NEUTRAL_BAND:
+        score -= sign
+
+    # 4. Volume spike, only meaningful with directional 24h candle.
+    if tc.volume_spike:
+        if chg > 0:
+            score += sign
+        elif chg < 0:
+            score -= sign
+
+    return score
 
 
 def technical_alignment(direction: Direction, tc: TechnicalContext) -> TechnicalAlignment:
-    if direction == "long":
-        return technical_alignment_for_long(tc)
-    return technical_alignment_for_short(tc)
+    score = alignment_score(direction, tc)
+    if score >= 2:
+        return "confirms"
+    if score <= -2:
+        return "contradicts"
+    return "mixed"
+
+
+# Backwards-compat shims for tests that still call the per-direction helpers.
+def technical_alignment_for_long(tc: TechnicalContext) -> TechnicalAlignment:
+    return technical_alignment("long", tc)
+
+
+def technical_alignment_for_short(tc: TechnicalContext) -> TechnicalAlignment:
+    return technical_alignment("short", tc)
 
 
 # Backwards-compat for tests that still import passes_filter.

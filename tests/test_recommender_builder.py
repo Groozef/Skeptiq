@@ -82,28 +82,54 @@ def test_direction_from_sentiment() -> None:
     assert direction_from_sentiment("very_bearish") == "short"
 
 
-def test_alignment_long_overbought_contradicts() -> None:
-    assert technical_alignment_for_long(
-        _tc(80, above_ema=True, volume_spike=False)
-    ) == "contradicts"
+def test_alignment_long_all_factors_positive_is_confirms() -> None:
+    """RSI > 55 + above EMA + 24h up + green-day vol spike: 4 votes for long."""
+    tc = _tc(60, above_ema=True, volume_spike=True)
+    # default change_24h_pct=1.0 in _tc — positive
+    assert technical_alignment_for_long(tc) == "confirms"
 
 
-def test_alignment_long_room_to_run_confirms() -> None:
-    assert technical_alignment_for_long(
-        _tc(40, above_ema=False, volume_spike=False)
-    ) == "confirms"
+def test_alignment_long_all_factors_negative_is_contradicts() -> None:
+    """RSI 29, below EMA, 24h −2.4%, red-day spike — the notatki bug repro."""
+    from skeptiq.recommender.builder import alignment_score
+
+    tc = TechnicalContext(
+        ticker="BTC",
+        price=70_000.0,
+        rsi_14=29.0,
+        rsi_state="oversold",
+        volume_spike=True,
+        above_ema20=False,
+        change_24h_pct=-2.4,
+        volume_ratio=2.5,
+    )
+    assert alignment_score("long", tc) <= -2
+    assert technical_alignment_for_long(tc) == "contradicts"
 
 
-def test_alignment_long_uptrend_with_spike_confirms() -> None:
-    assert technical_alignment_for_long(
-        _tc(60, above_ema=True, volume_spike=True)
-    ) == "confirms"
+def test_alignment_long_mixed_factors_is_mixed() -> None:
+    """RSI 40 below 45, above EMA, +1% (default), no spike: ±1 net = mixed."""
+    tc = _tc(40, above_ema=True, volume_spike=False)
+    assert technical_alignment_for_long(tc) == "mixed"
 
 
-def test_alignment_short_oversold_contradicts() -> None:
-    assert technical_alignment_for_short(
-        _tc(25, above_ema=False, volume_spike=False)
-    ) == "contradicts"
+def test_alignment_short_mirrors_long_for_oversold_overbought() -> None:
+    """RSI 25 + below EMA + 24h −2% + red-day spike — for SHORT this is mostly
+    aligned (RSI is the only conflict; the rest agree). v0.2.1 multi-factor
+    score: rsi 25 < 45 (+1), below EMA (+1), chg<-0.5 (+1), red spike (+1)
+    -> +4 score -> confirms. The "shorting an oversold market" caveat is
+    handled separately by PENALTY_RSI_CONFLICT in adjust_confidence."""
+    tc = TechnicalContext(
+        ticker="BTC",
+        price=70_000.0,
+        rsi_14=25.0,
+        rsi_state="oversold",
+        volume_spike=True,
+        above_ema20=False,
+        change_24h_pct=-2.0,
+        volume_ratio=2.5,
+    )
+    assert technical_alignment_for_short(tc) == "confirms"
 
 
 class _FakeBinance:
@@ -123,7 +149,9 @@ async def test_build_emits_one_rec_per_watchlist_ticker(
 ) -> None:
     contexts = {
         "BTC": _tc(60, above_ema=True, volume_spike=True, ticker="BTC", price=70_000.0),
-        "ETH": _tc(45, above_ema=False, volume_spike=False, ticker="ETH", price=3_500.0),
+        # ETH context tuned to score `confirms` under multi-factor alignment:
+        # rsi 60 (+1), above EMA (+1), 24h +1% (+1), green-day spike (+1) = +4.
+        "ETH": _tc(60, above_ema=True, volume_spike=True, ticker="ETH", price=3_500.0),
     }
     invalidations: dict[str, tuple[float, str]] = {
         # 2.1% below for BTC (under 5% high-risk threshold).

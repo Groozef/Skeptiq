@@ -7,7 +7,10 @@ from skeptiq.schemas.analysis import ImpactMagnitude, TimeHorizon
 from skeptiq.schemas.technical import TechnicalContext
 
 Direction = Literal["long", "short"]
-TechnicalAlignment = Literal["confirms", "neutral", "contradicts"]
+# v0.2.1: "mixed" replaces "neutral" as the middle category to better describe
+# the multi-factor scoring (some factors confirm, some don't). Legacy v0.2.0
+# rows in the DB still carry "neutral" — display paths handle both.
+TechnicalAlignment = Literal["confirms", "mixed", "contradicts", "neutral"]
 InvalidationKind = Literal["swing_low", "swing_high", "atr"]
 
 
