@@ -8,7 +8,7 @@ from skeptiq.schemas.technical import TechnicalContext
 
 Direction = Literal["long", "short"]
 TechnicalAlignment = Literal["confirms", "neutral", "contradicts"]
-InvalidationKind = Literal["swing_low", "swing_high", "atr_2_5x"]
+InvalidationKind = Literal["swing_low", "swing_high", "atr"]
 
 
 class Recommendation(BaseModel):

@@ -8,6 +8,7 @@ from skeptiq.core.models import IngestedItem
 from skeptiq.core.models import Recommendation as RecommendationORM
 from skeptiq.market.binance import BinanceClient
 from skeptiq.market.indicators import (
+    HORIZON_TO_INVALIDATION_INTERVAL,
     compute_invalidation_level,
     compute_technical_context,
 )
@@ -53,6 +54,13 @@ COUNTER_PENALTY: dict[str, float] = {
 # recommendation entirely — the LLM is signalling that its own counter-args
 # overwhelm its directional thesis.
 COUNTER_TOTAL_DROP_THRESHOLD = 0.15
+
+# Notatki-3: if the SL distance from entry exceeds this fraction, flag the
+# signal as high-risk and apply a -0.05 confidence penalty. Wide SL means
+# either tech context is very volatile or the structure level is far —
+# either way the trade is more risky than typical.
+HIGH_RISK_SL_DISTANCE = 0.05
+PENALTY_HIGH_RISK_SL = 0.05
 
 
 def compute_stop_loss_take_profit(
@@ -248,10 +256,24 @@ class RecommendationBuilder:
                 continue
 
             try:
-                klines = await self._binance.fetch_klines(ticker)
-                tc = compute_technical_context(ticker, klines)
+                # Tech context always on 1h regardless of horizon.
+                tech_klines = await self._binance.fetch_klines(ticker, interval="1h")
+                tc = compute_technical_context(ticker, tech_klines)
+
+                # Invalidation/SL on the timeframe matching the horizon, so
+                # an "hours" signal isn't measured against weekly volatility
+                # and a "days" signal isn't trapped inside hourly noise.
+                inv_interval = HORIZON_TO_INVALIDATION_INTERVAL.get(
+                    analysis.time_horizon, "1h"
+                )
+                if inv_interval == "1h":
+                    inv_klines = tech_klines
+                else:
+                    inv_klines = await self._binance.fetch_klines(
+                        ticker, interval=inv_interval
+                    )
                 invalidation_level, invalidation_kind = compute_invalidation_level(
-                    direction, klines
+                    direction, inv_klines
                 )
             except Exception as exc:
                 log.warning(
@@ -269,6 +291,14 @@ class RecommendationBuilder:
                 rsi=tc.rsi_14,
                 counter_signals=list(analysis.counter_signals),
             )
+
+            # Notatki-3: wide SL flag.
+            sl_distance_pct = abs(invalidation_level - tc.price) / tc.price
+            if sl_distance_pct > HIGH_RISK_SL_DISTANCE:
+                adjusted = max(0.0, adjusted - PENALTY_HIGH_RISK_SL)
+                adjustments.append(
+                    f"high_risk_sl_{sl_distance_pct:.1%}_-{PENALTY_HIGH_RISK_SL:.2f}"
+                )
 
             if drop:
                 log.info(

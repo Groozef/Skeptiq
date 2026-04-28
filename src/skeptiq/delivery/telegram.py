@@ -60,6 +60,9 @@ def format_message(rec: Recommendation, *, tz: ZoneInfo, language: Language = "e
     invalidation_kind_key = {
         "swing_low": "kind_swing_low",
         "swing_high": "kind_swing_high",
+        "atr": "kind_atr",
+        # legacy v0.2.0 rows used "atr_2_5x"; map to the same label so
+        # historical journal/Telegram reprints don't crash.
         "atr_2_5x": "kind_atr",
     }.get(rec.invalidation_kind, "kind_atr")
 

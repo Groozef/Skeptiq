@@ -82,7 +82,7 @@ def test_format_message_short_uses_bearish_label_and_invalid_above() -> None:
         update={
             "direction": "short",
             "invalidation_level": 73_500.00,
-            "invalidation_kind": "atr_2_5x",
+            "invalidation_kind": "atr",
             "stop_loss": 73_500.00,
             "take_profit": 66_721.65,  # 71,240 - 2*(73,500-71,240)
         }
@@ -91,7 +91,7 @@ def test_format_message_short_uses_bearish_label_and_invalid_above() -> None:
     assert "*SHORT signal" in msg
     assert "*Why bearish:*" in msg
     assert "Invalid above" in msg
-    assert "ATR×2\\.5" in msg
+    assert "ATR×1\\.5" in msg
 
 
 def test_format_message_shows_calibration_delta_when_applied() -> None:
@@ -142,7 +142,7 @@ def test_format_message_short_russian_says_pochemu_vniz() -> None:
         update={
             "direction": "short",
             "invalidation_level": 73_500.00,
-            "invalidation_kind": "atr_2_5x",
+            "invalidation_kind": "atr",
             "stop_loss": 73_500.00,
             "take_profit": 66_721.65,
         }

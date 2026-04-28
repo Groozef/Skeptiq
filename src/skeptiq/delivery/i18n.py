@@ -40,7 +40,7 @@ _LABELS: dict[Language, dict[str, str]] = {
         # invalidation kinds
         "kind_swing_low": "swing low",
         "kind_swing_high": "swing high",
-        "kind_atr": "ATR×2.5",
+        "kind_atr": "ATR×1.5",
         # impact values
         "imp_low": "LOW",
         "imp_medium": "MEDIUM",
@@ -88,7 +88,7 @@ _LABELS: dict[Language, dict[str, str]] = {
         "align_contradicts": "противоречит",
         "kind_swing_low": "swing low",
         "kind_swing_high": "swing high",
-        "kind_atr": "ATR×2.5",
+        "kind_atr": "ATR×1.5",
         "imp_low": "НИЗКАЯ",
         "imp_medium": "СРЕДНЯЯ",
         "imp_high": "ВЫСОКАЯ",

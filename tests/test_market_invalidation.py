@@ -35,7 +35,7 @@ def test_long_invalidation_below_last_close() -> None:
     last_close = klines[-1].close
     level, kind = compute_invalidation_level("long", klines)
     assert level < last_close
-    assert kind in {"swing_low", "atr_2_5x"}
+    assert kind in {"swing_low", "atr"}
 
 
 def test_short_invalidation_above_last_close() -> None:
@@ -43,15 +43,36 @@ def test_short_invalidation_above_last_close() -> None:
     last_close = klines[-1].close
     level, kind = compute_invalidation_level("short", klines)
     assert level > last_close
-    assert kind in {"swing_high", "atr_2_5x"}
+    assert kind in {"swing_high", "atr"}
 
 
 def test_kind_is_one_of_three_values_for_normal_data() -> None:
     klines = _wavy_klines(100, amp=200.0)
     _, kind_long = compute_invalidation_level("long", klines)
     _, kind_short = compute_invalidation_level("short", klines)
-    assert kind_long in {"swing_low", "atr_2_5x"}
-    assert kind_short in {"swing_high", "atr_2_5x"}
+    assert kind_long in {"swing_low", "atr"}
+    assert kind_short in {"swing_high", "atr"}
+
+
+def test_picks_farther_of_swing_and_atr_for_long() -> None:
+    """Notatki-3 fix: SL must sit at FARTHER of (swing_low, entry-1.5×ATR).
+    Build data where swing_low is *closer* to entry than the ATR stop and
+    confirm we pick the ATR stop instead (the previous bug was the reverse)."""
+    import dataclasses
+
+    klines = _wavy_klines(100, amp=200.0)
+    # Force last 24 lows to be only slightly below the last close, so that
+    # the ATR-derived stop ends up farther down than swing_low.
+    last_close = klines[-1].close
+    target_low = last_close - 5.0  # 5 dollars below entry only
+    for i in range(24):
+        idx = -1 - i
+        klines[idx] = dataclasses.replace(klines[idx], low=target_low)
+
+    level, kind = compute_invalidation_level("long", klines)
+    # ATR stop should win because swing_low is now too close.
+    assert kind == "atr"
+    assert level < target_low  # ATR stop sits below the doctored swing_low
 
 
 def test_invalidation_distance_grows_with_volatility() -> None:

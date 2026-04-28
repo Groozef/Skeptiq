@@ -11,10 +11,20 @@ VOLUME_AVG_WINDOW = 20
 EMA_WINDOW = 20
 RSI_LENGTH = 14
 ATR_LENGTH = 14
-SWING_LOOKBACK = 24  # hourly candles -> last 24h
-ATR_MULTIPLE = 2.5
+SWING_LOOKBACK = 24  # candles back over which we look for swing high/low
+ATR_MULTIPLE = 1.5  # was 2.5; tightened per notatki-3 with the comparison fix
 
-InvalidationKind = Literal["swing_low", "swing_high", "atr_2_5x"]
+# Map horizon -> kline interval used for invalidation/SL computation.
+# A "days" signal needs structure and volatility on a 4H frame; a "weeks"
+# signal needs them on a 1D frame. tech_context still uses 1H regardless.
+HORIZON_TO_INVALIDATION_INTERVAL: dict[str, str] = {
+    "immediate": "1h",
+    "hours": "1h",
+    "days": "4h",
+    "weeks": "1d",
+}
+
+InvalidationKind = Literal["swing_low", "swing_high", "atr"]
 
 
 def klines_to_df(klines: list[Kline]) -> pd.DataFrame:
@@ -72,16 +82,22 @@ def compute_technical_context(ticker: str, klines: list[Kline]) -> TechnicalCont
 def compute_invalidation_level(
     direction: Literal["long", "short"],
     klines: list[Kline],
+    *,
+    atr_multiple: float = ATR_MULTIPLE,
 ) -> tuple[float, InvalidationKind]:
-    """Compute the price level that would invalidate the directional thesis.
+    """Price level beyond which the directional thesis is invalidated.
 
-    For longs: the higher of (recent swing low) and (entry - 2.5×ATR).
-              "Higher" = tighter stop, so we don't sit through random noise.
-    For shorts: the lower of (recent swing high) and (entry + 2.5×ATR).
+    Picks the FARTHER of two candidates from entry, so the trade has room
+    to breathe through normal volatility. Notatki-3 revealed that the
+    previous tighter-of-two heuristic produced 0.37% SL on BTC longs —
+    inside one bar's worth of noise — because BTC's swing_low over the
+    last 24 1h candles was very close to entry.
 
-    Returns (level, kind) where kind names which constraint actually bound.
-    Caller is responsible for showing this as a *thesis-invalidation* level,
-    not a recommended trading stop-loss.
+    For long:  SL = min(swing_low_lookback, entry - 1.5*ATR)   (lower = farther)
+    For short: SL = max(swing_high_lookback, entry + 1.5*ATR)  (higher = farther)
+
+    `klines` should be on the timeframe matching the signal's horizon
+    (1h / 4h / 1d) — see HORIZON_TO_INVALIDATION_INTERVAL.
     """
     df = klines_to_df(klines)
     closes = df["close"]
@@ -96,13 +112,14 @@ def compute_invalidation_level(
 
     if direction == "long":
         swing_low = float(lows.iloc[-lookback:].min())
-        atr_stop = last_close - ATR_MULTIPLE * atr
-        if swing_low >= atr_stop:
+        atr_stop = last_close - atr_multiple * atr
+        # Pick whichever sits FARTHER below entry (lower price).
+        if swing_low <= atr_stop:
             return swing_low, "swing_low"
-        return atr_stop, "atr_2_5x"
+        return atr_stop, "atr"
 
     swing_high = float(highs.iloc[-lookback:].max())
-    atr_stop = last_close + ATR_MULTIPLE * atr
-    if swing_high <= atr_stop:
+    atr_stop = last_close + atr_multiple * atr
+    if swing_high >= atr_stop:
         return swing_high, "swing_high"
-    return atr_stop, "atr_2_5x"
+    return atr_stop, "atr"

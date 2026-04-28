@@ -120,7 +120,7 @@ async def test_build_emits_one_rec_per_watchlist_ticker(
     }
     invalidations: dict[str, tuple[float, str]] = {
         "BTC": (68_500.0, "swing_low"),
-        "ETH": (3_100.0, "atr_2_5x"),
+        "ETH": (3_100.0, "atr"),
     }
 
     async def _fake_fetch(self: Any, ticker: str, **_kw: Any) -> list[Any]:
@@ -190,7 +190,7 @@ async def test_build_emits_one_rec_per_watchlist_ticker(
     assert btc.counter_signals == ["c"]
     assert btc.invalidation_level == 68_500.0
     assert btc.invalidation_kind == "swing_low"
-    assert eth.invalidation_kind == "atr_2_5x"
+    assert eth.invalidation_kind == "atr"
     # base 0.7 + alignment_confirms +0.05 - counter_minor -0.02 = 0.73
     assert btc.confidence == pytest.approx(0.73)
     assert btc.base_confidence == pytest.approx(0.7)
