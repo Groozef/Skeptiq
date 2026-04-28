@@ -14,6 +14,7 @@ from skeptiq.market.indicators import (
 from skeptiq.recommender.dedup import find_recent_duplicate
 from skeptiq.schemas import (
     IMPACT_ORDER,
+    CounterSignal,
     Direction,
     NewsAnalysis,
     Recommendation,
@@ -40,6 +41,19 @@ MAX_POSSIBLE_BONUS = BONUS_ALIGNMENT_CONFIRMS
 # 2.0 = 1:2 risk-reward (lose 1 unit on SL, win 2 units on TP).
 TAKE_PROFIT_RR_MULTIPLE = 2.0
 
+# Counter-signal severity → confidence penalty (in confidence-point units, i.e.
+# 0.07 = 7pp). Notatki #2 calibration: minor/-2, moderate/-4, strong/-7, critical/-12.
+COUNTER_PENALTY: dict[str, float] = {
+    "minor": 0.02,
+    "moderate": 0.04,
+    "strong": 0.07,
+    "critical": 0.12,
+}
+# If the SUM of counter-signal penalties exceeds this threshold, drop the
+# recommendation entirely — the LLM is signalling that its own counter-args
+# overwhelm its directional thesis.
+COUNTER_TOTAL_DROP_THRESHOLD = 0.15
+
 
 def compute_stop_loss_take_profit(
     *,
@@ -61,11 +75,18 @@ def adjust_confidence(
     direction: Direction,
     alignment: TechnicalAlignment,
     rsi: float,
-) -> tuple[float, list[str]]:
-    """Apply technical-conflict penalties / agreement bonuses to the LLM's
-    raw confidence. Returns (adjusted, audit_trail).
+    counter_signals: list[CounterSignal] | None = None,
+) -> tuple[float, list[str], bool]:
+    """Apply technical-conflict penalties / agreement bonuses / counter-signal
+    severity penalties to the LLM's raw confidence.
 
-    The reasoning:
+    Returns (adjusted_confidence, audit_trail, drop_flag).
+
+    drop_flag is True when the sum of counter-signal penalties alone exceeds
+    COUNTER_TOTAL_DROP_THRESHOLD (default 0.15) — the LLM is essentially
+    saying its own caveats outweigh its directional thesis.
+
+    Reasoning behind each component:
     - alignment=neutral: tech context didn't confirm the directional thesis,
       so we have one fewer corroborating signal than if it had.
     - alignment=contradicts: tech context actively argues against the thesis;
@@ -74,6 +95,8 @@ def adjust_confidence(
     - RSI conflict: shorting at RSI<35 (near-oversold) or longing at RSI>65
       (near-overbought) means we're entering against the local technical
       reflex, which historically takes a few bars to play out.
+    - counter-signal severities: minor/moderate/strong/critical map to
+      0.02/0.04/0.07/0.12 penalty each; sum aggregates.
     """
     adjusted = base
     reasons: list[str] = []
@@ -95,7 +118,35 @@ def adjust_confidence(
         adjusted -= PENALTY_RSI_CONFLICT
         reasons.append(f"rsi_overbought_for_long_-{PENALTY_RSI_CONFLICT:.2f}")
 
-    return max(0.0, min(CONFIDENCE_CAP, adjusted)), reasons
+    counter_total = 0.0
+    for cs in counter_signals or []:
+        penalty = COUNTER_PENALTY.get(cs.severity, 0.0)
+        if penalty > 0:
+            adjusted -= penalty
+            reasons.append(f"counter_{cs.severity}_-{penalty:.2f}")
+            counter_total += penalty
+
+    drop = counter_total >= COUNTER_TOTAL_DROP_THRESHOLD
+    if drop:
+        reasons.append(f"counter_total_drop_-{counter_total:.2f}")
+
+    return max(0.0, min(CONFIDENCE_CAP, adjusted)), reasons, drop
+
+
+def adjust_confidence_legacy_unchecked(
+    base: float,
+    *,
+    direction: Direction,
+    alignment: TechnicalAlignment,
+    rsi: float,
+) -> tuple[float, list[str]]:
+    """Two-tuple wrapper for older callers that haven't migrated to the
+    drop-flag form. Counter-signal penalties are NOT applied here; new code
+    should use adjust_confidence() with counter_signals=."""
+    adjusted, reasons, _drop = adjust_confidence(
+        base, direction=direction, alignment=alignment, rsi=rsi,
+    )
+    return adjusted, reasons
 
 
 def passes_pre_filter(analysis: NewsAnalysis, settings: Settings) -> bool:
@@ -211,12 +262,23 @@ class RecommendationBuilder:
                 continue
 
             alignment = technical_alignment(direction, tc)
-            adjusted, adjustments = adjust_confidence(
+            adjusted, adjustments, drop = adjust_confidence(
                 analysis.confidence,
                 direction=direction,
                 alignment=alignment,
                 rsi=tc.rsi_14,
+                counter_signals=list(analysis.counter_signals),
             )
+
+            if drop:
+                log.info(
+                    "recommendation_counter_overload_dropped",
+                    item_id=item.id,
+                    ticker=ticker,
+                    base=round(analysis.confidence, 2),
+                    adjustments=adjustments,
+                )
+                continue
 
             if adjusted < self._settings.min_confidence:
                 log.info(
@@ -249,7 +311,7 @@ class RecommendationBuilder:
                     horizon=analysis.time_horizon,
                     summary=analysis.summary,
                     directional_arguments=list(analysis.key_points),
-                    counter_signals=list(analysis.counter_signals),
+                    counter_signals=[cs.text for cs in analysis.counter_signals],
                     technical_context=tc,
                     technical_alignment=alignment,
                     invalidation_level=invalidation_level,

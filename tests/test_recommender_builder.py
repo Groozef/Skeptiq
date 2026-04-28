@@ -26,7 +26,7 @@ def _analysis(**overrides: Any) -> NewsAnalysis:
         "summary": "x",
         "key_points": ["a", "b"],
         "reasoning": "r " * 5,
-        "counter_signals": ["c"],
+        "counter_signals": [{"text": "c", "severity": "minor"}],
         "event_subject": "test event placeholder",
         "event_key_numbers": [],
         "event_related_projects": [],
@@ -191,8 +191,8 @@ async def test_build_emits_one_rec_per_watchlist_ticker(
     assert btc.invalidation_level == 68_500.0
     assert btc.invalidation_kind == "swing_low"
     assert eth.invalidation_kind == "atr_2_5x"
-    # confirms alignment -> +0.05 bonus (but cap at 0.95). base 0.7 -> 0.75.
-    assert btc.confidence == pytest.approx(0.75)
+    # base 0.7 + alignment_confirms +0.05 - counter_minor -0.02 = 0.73
+    assert btc.confidence == pytest.approx(0.73)
     assert btc.base_confidence == pytest.approx(0.7)
     assert any("alignment_confirms" in adj for adj in btc.confidence_adjustments)
 

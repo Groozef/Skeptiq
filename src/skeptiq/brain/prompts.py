@@ -157,13 +157,45 @@ FIELD GUIDANCE
 13. counter_signals - a list of >= 1 concrete counter-argument or risk to
    your own call. MANDATORY; even for very_bullish or very_bearish you MUST
    surface at least one credible disconfirming consideration.
-   Useful kinds of counter-signals:
+
+   Each counter-signal is an OBJECT with two fields:
+   - text: the counter-argument itself, specific
+   - severity: tag the damaging weight relative to your thesis. Pick HONESTLY
+     from the rubric below. The downstream system applies confidence
+     penalties from these tags, so over-tagging "strong"/"critical" causes
+     valid signals to be dropped, and under-tagging undermines calibration.
+
+   Severity rubric (with what it costs in confidence points):
+     - critical (-12pp): the counter-argument, if true, fundamentally
+       invalidates the thesis. Example: "the article is unsourced and
+       potentially fabricated".
+     - strong (-7pp): a major caveat that materially weakens the thesis.
+       Examples: "may be a rehash of a story already priced in",
+       "the watchlist ticker is a secondary mention, the main subject is
+       a different project", "article body is thin/sparse, lacks the
+       quantitative backing claimed in the title", "regulatory action is
+       posture-only and not legally binding".
+     - moderate (-4pp): a noteworthy risk that often plays out. Examples:
+       "options expiry within 48h could distort price discovery",
+       "macro conditions could turn risk-off and override this thesis",
+       "claim is from a single source and unconfirmed".
+     - minor (-2pp): a small caveat or common-mechanics reminder.
+       Examples: "named-individual statement, not policy", "small-cap
+       liquidity makes execution risky".
+
+   If the SUM of severity penalties exceeds 15pp (e.g. three "strong" =
+   21pp), the recommendation is dropped before sending. Don't pad
+   "minor" boilerplate, and don't over-tag — calibration is the point.
+
+   Useful kinds of counter-signals to surface:
    - prior similar events that did not move price as expected
    - structural market mechanics (sell-the-news, options expiry, funding
      reset, scheduled unlocks)
    - alternative interpretations of the same fact
-   - source reliability concerns
+   - source reliability or article-quality concerns
    - upcoming events that may overshadow this one
+   - secondary-mention concern (the watchlist ticker isn't the article's
+     main subject)
    Do NOT pad with weak boilerplate ("but anything could happen", "markets
    are unpredictable"). Each counter-signal must be specific.
 

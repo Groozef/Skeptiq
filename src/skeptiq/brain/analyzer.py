@@ -66,7 +66,9 @@ class NewsAnalyzer:
             summary=parsed.summary,
             reasoning=parsed.reasoning,
             key_points_json=json.dumps(parsed.key_points),
-            counter_signals_json=json.dumps(parsed.counter_signals),
+            counter_signals_json=json.dumps(
+                [cs.model_dump() for cs in parsed.counter_signals]
+            ),
             event_subject=parsed.event_subject,
             event_key_numbers_json=json.dumps(parsed.event_key_numbers),
             event_related_projects_json=json.dumps(parsed.event_related_projects),

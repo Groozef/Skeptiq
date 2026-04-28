@@ -43,7 +43,10 @@ async def test_analyze_item_persists_and_marks_processed(
         summary="ETF inflows hit $1B.",
         key_points=["Institutional demand confirmed", "Coincides with FOMC"],
         reasoning="Inflows of this size are historically directional. " * 2,
-        counter_signals=["Resistance at $73k", "Sell-the-news risk"],
+        counter_signals=[
+            {"text": "Resistance at $73k", "severity": "moderate"},
+            {"text": "Sell-the-news risk", "severity": "minor"},
+        ],
         event_subject="ETF inflow milestone",
         event_key_numbers=["$1B"],
         event_related_projects=[],
