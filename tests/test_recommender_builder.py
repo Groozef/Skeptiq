@@ -35,10 +35,17 @@ def _analysis(**overrides: Any) -> NewsAnalysis:
     return NewsAnalysis.model_validate(base)
 
 
-def _tc(rsi: float, *, above_ema: bool, volume_spike: bool) -> TechnicalContext:
+def _tc(
+    rsi: float,
+    *,
+    above_ema: bool,
+    volume_spike: bool,
+    ticker: str = "BTC",
+    price: float = 70_000.0,
+) -> TechnicalContext:
     return TechnicalContext(
-        ticker="BTC",
-        price=70_000.0,
+        ticker=ticker,
+        price=price,
         rsi_14=rsi,
         rsi_state=("oversold" if rsi < 30 else "overbought" if rsi > 70 else "neutral"),
         volume_spike=volume_spike,
@@ -115,12 +122,14 @@ async def test_build_emits_one_rec_per_watchlist_ticker(
     settings: Settings, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     contexts = {
-        "BTC": _tc(60, above_ema=True, volume_spike=True),
-        "ETH": _tc(45, above_ema=False, volume_spike=False),
+        "BTC": _tc(60, above_ema=True, volume_spike=True, ticker="BTC", price=70_000.0),
+        "ETH": _tc(45, above_ema=False, volume_spike=False, ticker="ETH", price=3_500.0),
     }
     invalidations: dict[str, tuple[float, str]] = {
+        # 2.1% below for BTC (under 5% high-risk threshold).
         "BTC": (68_500.0, "swing_low"),
-        "ETH": (3_100.0, "atr"),
+        # 4.3% below for ETH.
+        "ETH": (3_350.0, "atr"),
     }
 
     async def _fake_fetch(self: Any, ticker: str, **_kw: Any) -> list[Any]:
@@ -168,13 +177,21 @@ async def test_build_emits_one_rec_per_watchlist_ticker(
     binance = BinanceClient()
     builder = RecommendationBuilder(settings=settings, binance=binance)
 
+    # Title + body must mention BTC and ETH enough times that subject detection
+    # classifies both as primary.
     item = IngestedItem(
         id=1,
         source="coindesk",
         external_id="x",
         url="https://example.com/x",
-        title="t",
-        content="c",
+        title="Bitcoin and Ethereum rally on macro tailwinds",
+        content=(
+            "Bitcoin and Ethereum both posted strong gains. "
+            "BTC traded above $70k while Ethereum cleared $3500. "
+            "Analysts expect Bitcoin and ETH to lead the next leg up. "
+            "Bitcoin's institutional flows continue to dominate, with Ethereum "
+            "tracking closely. BTC dominance held while ETH funding stayed flat."
+        ),
         published_at=datetime.now(UTC),
     )
     analysis = _analysis(affected_tickers=["BTC", "ETH", "DOGE"])
@@ -192,6 +209,7 @@ async def test_build_emits_one_rec_per_watchlist_ticker(
     assert btc.invalidation_kind == "swing_low"
     assert eth.invalidation_kind == "atr"
     # base 0.7 + alignment_confirms +0.05 - counter_minor -0.02 = 0.73
+    # SL distance 2.1% (under 5%), subject = primary -> no further penalty.
     assert btc.confidence == pytest.approx(0.73)
     assert btc.base_confidence == pytest.approx(0.7)
     assert any("alignment_confirms" in adj for adj in btc.confidence_adjustments)

@@ -13,6 +13,7 @@ from skeptiq.market.indicators import (
     compute_technical_context,
 )
 from skeptiq.recommender.dedup import find_recent_duplicate
+from skeptiq.recommender.subject import detect_subject
 from skeptiq.schemas import (
     IMPACT_ORDER,
     CounterSignal,
@@ -61,6 +62,11 @@ COUNTER_TOTAL_DROP_THRESHOLD = 0.15
 # either way the trade is more risky than typical.
 HIGH_RISK_SL_DISTANCE = 0.05
 PENALTY_HIGH_RISK_SL = 0.05
+
+# Notatki-4: when a watchlist ticker is only a secondary mention in the
+# article (main subject is something else), apply this penalty. -10pp is
+# typically enough to drop the signal below MIN_CONFIDENCE on its own.
+PENALTY_SECONDARY_MENTION = 0.10
 
 
 def compute_stop_loss_take_profit(
@@ -255,6 +261,21 @@ class RecommendationBuilder:
                 )
                 continue
 
+            # Subject detection: is this ticker the main subject of the news,
+            # or just a passing mention?
+            subject_kind, subject_counts = detect_subject(
+                ticker=ticker,
+                item=item,
+                related_projects=list(analysis.event_related_projects),
+            )
+            if subject_kind == "secondary":
+                log.info(
+                    "secondary_mention_detected",
+                    ticker=ticker,
+                    item_id=item.id,
+                    counts=subject_counts,
+                )
+
             try:
                 # Tech context always on 1h regardless of horizon.
                 tech_klines = await self._binance.fetch_klines(ticker, interval="1h")
@@ -298,6 +319,14 @@ class RecommendationBuilder:
                 adjusted = max(0.0, adjusted - PENALTY_HIGH_RISK_SL)
                 adjustments.append(
                     f"high_risk_sl_{sl_distance_pct:.1%}_-{PENALTY_HIGH_RISK_SL:.2f}"
+                )
+
+            # Notatki-4: secondary-mention penalty applied here so it shows in
+            # the same audit trail as alignment / counter-signal adjustments.
+            if subject_kind == "secondary":
+                adjusted = max(0.0, adjusted - PENALTY_SECONDARY_MENTION)
+                adjustments.append(
+                    f"secondary_mention_-{PENALTY_SECONDARY_MENTION:.2f}"
                 )
 
             if drop:
