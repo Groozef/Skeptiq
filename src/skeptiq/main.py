@@ -15,6 +15,7 @@ from skeptiq.core.logging import configure_logging, get_logger
 from skeptiq.delivery.telegram import TelegramSender
 from skeptiq.ingestors.rss import DEFAULT_FEEDS, RssIngestor
 from skeptiq.market.binance import BinanceClient
+from skeptiq.market.funding import FundingProvider
 from skeptiq.market.macro import MacroProvider
 from skeptiq.recommender.builder import RecommendationBuilder
 from skeptiq.tracking.hit_rate import HitRateTracker
@@ -91,8 +92,11 @@ async def run() -> None:
     llm = LlmClient(settings)
     binance = BinanceClient(http_client=binance_http)
     macro = MacroProvider()
+    funding = FundingProvider(http_client=binance_http)
     analyzer = NewsAnalyzer(llm)
-    builder = RecommendationBuilder(settings=settings, binance=binance, macro=macro)
+    builder = RecommendationBuilder(
+        settings=settings, binance=binance, macro=macro, funding=funding,
+    )
     sender = TelegramSender(
         bot_token=settings.telegram_bot_token,
         chat_id=settings.my_telegram_chat_id,

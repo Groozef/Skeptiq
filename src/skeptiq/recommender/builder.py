@@ -7,12 +7,15 @@ from skeptiq.core.logging import get_logger
 from skeptiq.core.models import IngestedItem
 from skeptiq.core.models import Recommendation as RecommendationORM
 from skeptiq.market.binance import BinanceClient
+from skeptiq.market.funding import FundingProvider
+from skeptiq.market.funding import alignment_for_direction as funding_alignment
 from skeptiq.market.indicators import (
     HORIZON_TO_INVALIDATION_INTERVAL,
     compute_invalidation_level,
     compute_technical_context,
 )
-from skeptiq.market.macro import MacroProvider, alignment_for_direction
+from skeptiq.market.macro import MacroProvider
+from skeptiq.market.macro import alignment_for_direction as macro_alignment
 from skeptiq.recommender.dedup import find_recent_duplicate
 from skeptiq.recommender.subject import detect_subject
 from skeptiq.schemas import (
@@ -83,6 +86,12 @@ PENALTY_SECONDARY_MENTION = 0.05  # was 0.10
 # discount confidence; when it supports, small bonus.
 PENALTY_MACRO_CONFLICT = 0.10
 BONUS_MACRO_SUPPORT = 0.05
+
+# v0.3: per-ticker funding context. Joining a crowded one-sided trade is late
+# entry / squeeze risk; taking the other side of crowded positioning is the
+# structural contrarian play.
+PENALTY_FUNDING_CONFLICT = 0.05
+BONUS_FUNDING_SUPPORT = 0.05
 
 # v0.3: bonus for high-impact news. The intuition is that high-impact events
 # (ETF approval, FOMC, hack of top-20 venue) deserve a confidence push because
@@ -335,6 +344,7 @@ class RecommendationBuilder:
         settings: Settings,
         binance: BinanceClient,
         macro: MacroProvider | None = None,
+        funding: FundingProvider | None = None,
     ) -> None:
         self._settings = settings
         self._binance = binance
@@ -342,6 +352,10 @@ class RecommendationBuilder:
         # entirely (useful in tests). Production main.py wires a real
         # MacroProvider so signals see SPX/DXY/VIX context.
         self._macro = macro
+        # funding is optional — when None, the funding adjustment is
+        # skipped. Production main.py wires a real FundingProvider so
+        # signals see Binance perp funding rates.
+        self._funding = funding
 
     async def build(
         self,
@@ -461,14 +475,14 @@ class RecommendationBuilder:
             if self._macro is not None:
                 try:
                     macro_ctx = await self._macro.get_context()
-                    macro_align = alignment_for_direction(macro_ctx, direction)
-                    if macro_align == "conflict":
+                    m_align = macro_alignment(macro_ctx, direction)
+                    if m_align == "conflict":
                         adjusted = max(0.0, adjusted - PENALTY_MACRO_CONFLICT)
                         adjustments.append(
                             f"macro_conflict_score{macro_ctx.score:+d}"
                             f"_-{PENALTY_MACRO_CONFLICT:.2f}"
                         )
-                    elif macro_align == "support":
+                    elif m_align == "support":
                         adjusted = min(CONFIDENCE_CAP, adjusted + BONUS_MACRO_SUPPORT)
                         adjustments.append(
                             f"macro_support_score{macro_ctx.score:+d}"
@@ -477,6 +491,36 @@ class RecommendationBuilder:
                     # neutral / unavailable -> no adjustment
                 except Exception as exc:
                     log.warning("macro_adjustment_skipped", error=str(exc))
+
+            # v0.3: funding-rate adjustment per ticker.
+            if self._funding is not None:
+                try:
+                    f_ctx = await self._funding.get_context(ticker)
+                    f_align = funding_alignment(f_ctx, direction)
+                    if f_align == "conflict":
+                        adjusted = max(0.0, adjusted - PENALTY_FUNDING_CONFLICT)
+                        rate_pct = (
+                            (f_ctx.funding_rate_8h or 0.0) * 100
+                        )
+                        adjustments.append(
+                            f"funding_crowded_{rate_pct:+.3f}%"
+                            f"_-{PENALTY_FUNDING_CONFLICT:.2f}"
+                        )
+                    elif f_align == "support":
+                        adjusted = min(CONFIDENCE_CAP, adjusted + BONUS_FUNDING_SUPPORT)
+                        rate_pct = (
+                            (f_ctx.funding_rate_8h or 0.0) * 100
+                        )
+                        adjustments.append(
+                            f"funding_contrarian_{rate_pct:+.3f}%"
+                            f"_+{BONUS_FUNDING_SUPPORT:.2f}"
+                        )
+                except Exception as exc:
+                    log.warning(
+                        "funding_adjustment_skipped",
+                        ticker=ticker,
+                        error=str(exc),
+                    )
 
             if drop:
                 log.info(
