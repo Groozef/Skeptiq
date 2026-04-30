@@ -210,3 +210,304 @@ Will be filled once we have ≥10 closed signals.
 | Win rate | — |
 | Avg R achieved | — |
 | Realized EV per signal (R) | — |
+
+## #003 — AAVE LONG
+<!-- skeptiq:db_id=3 sent_at=2026-04-28T15:44:10.220294 -->
+
+**Status:** OPEN
+
+| Field | Value |
+|---|---|
+| Sent (UTC) | 2026-04-28 15:44:10 |
+| Source | decrypt |
+| Title | Aave-Led 'DeFi United' Relief Effort Raises $300 Million to Cover Kelp DAO Exploit Losses |
+| URL | https://decrypt.co/365724/aave-led-defi-united-relief-effort-raises-300m-kelp-dao-losses |
+| Entry | $96.20 |
+| RSI(14) | 44.2 |
+| Above EMA20 | no |
+| Volume spike | YES |
+| 24h change | -2.54% |
+| Tech alignment | confirms |
+| Confidence | 0.60 (base 0.55) |
+| Impact / Horizon | high / days |
+| SL / TP | $95.24 / $98.12 |
+| Invalidation kind | swing_low |
+
+### LLM thesis
+An Aave-led cross-protocol initiative dubbed "DeFi United" has reportedly raised $300 million in commitments to cover losses stemming from an exploit targeting Kelp DAO, fully replenishing the affected funds.
+
+### Manual review (Claude as trader)
+_Pending — ping Claude in chat to fill in this block._
+
+<!-- outcome-block id=003 start -->
+### Outcome (auto-synced from hit-rate tracker)
+
+| Mark | Price | PnL | Notes |
+|---|---|---|---|
+| +1h | PENDING | — | — |
+| +6h | PENDING | — | — |
+| +24h | PENDING | — | — |
+| TP hit ($98.12)? | PENDING | — | — |
+| SL hit ($95.24)? | PENDING | — | — |
+| Final verdict | PENDING | — | — |
+<!-- outcome-block end -->
+
+---
+
+## #004 — AAVE SHORT
+<!-- skeptiq:db_id=4 sent_at=2026-04-28T15:50:00.250000 -->
+
+**Status:** OPEN
+
+| Field | Value |
+|---|---|
+| Sent (UTC) | 2026-04-28 15:50:00 |
+| Source | cointelegraph |
+| Title | Aave-linked DeFi United unveils rsETH recovery plan after $293M Kelp exploit |
+| URL | https://cointelegraph.com/news/aave-linked-defi-united-outlines-plan-to-restore-rseth-backing-after-293m-exploit?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound |
+| Entry | $96.20 |
+| RSI(14) | 44.2 |
+| Above EMA20 | no |
+| Volume spike | YES |
+| 24h change | -2.54% |
+| Tech alignment | confirms |
+| Confidence | 0.67 (base 0.62) |
+| Impact / Horizon | high / days |
+| SL / TP | $98.86 / $90.88 |
+| Invalidation kind | swing_high |
+
+### LLM thesis
+DeFi United, linked to Aave, has published a technical recovery plan to restore the backing of rsETH and unwind DeFi positions connected to the attacker following a reported $293 million exploit of the Kelp protocol. The plan is in response to an exploit that has already occurred, not a prospective event.
+
+### Manual review (Claude as trader)
+_Pending — ping Claude in chat to fill in this block._
+
+<!-- outcome-block id=004 start -->
+### Outcome (auto-synced from hit-rate tracker)
+
+| Mark | Price | PnL | Notes |
+|---|---|---|---|
+| +1h | PENDING | — | — |
+| +6h | PENDING | — | — |
+| +24h | PENDING | — | — |
+| TP hit ($90.88)? | PENDING | — | — |
+| SL hit ($98.86)? | PENDING | — | — |
+| Final verdict | PENDING | — | — |
+<!-- outcome-block end -->
+
+---
+
+## #005 — BTC LONG
+<!-- skeptiq:db_id=5 sent_at=2026-04-28T15:52:56.008829 -->
+
+**Status:** OPEN
+
+| Field | Value |
+|---|---|
+| Sent (UTC) | 2026-04-28 15:52:56 |
+| Source | coindesk |
+| Title | Jack Dorsey's Block nears 9,000 bitcoin in treasury after Q1 addition |
+| URL | https://www.coindesk.com/business/2026/04/28/jack-dorsey-s-block-nears-9-000-bitcoin-in-treasury-after-q1-addition |
+| Entry | $75,949.99 |
+| RSI(14) | 29.0 |
+| Above EMA20 | no |
+| Volume spike | YES |
+| 24h change | -2.40% |
+| Tech alignment | confirms |
+| Confidence | 0.60 (base 0.55) |
+| Impact / Horizon | medium / days |
+| SL / TP | $75,666.60 / $76,516.77 |
+| Invalidation kind | swing_low |
+
+### LLM thesis
+Jack Dorsey's Block Inc. has grown its Bitcoin treasury to nearly 9,000 BTC following a first-quarter 2026 addition to its holdings. The announcement confirms continued accumulation by a publicly traded crypto-adjacent company.
+
+### Manual review (Claude as trader)
+_Pending — ping Claude in chat to fill in this block._
+
+<!-- outcome-block id=005 start -->
+### Outcome (auto-synced from hit-rate tracker)
+
+| Mark | Price | PnL | Notes |
+|---|---|---|---|
+| +1h | PENDING | — | — |
+| +6h | PENDING | — | — |
+| +24h | PENDING | — | — |
+| TP hit ($76,516.77)? | PENDING | — | — |
+| SL hit ($75,666.60)? | PENDING | — | — |
+| Final verdict | PENDING | — | — |
+<!-- outcome-block end -->
+
+---
+
+## #006 — BTC LONG
+<!-- skeptiq:db_id=6 sent_at=2026-04-28T15:53:18.868100 -->
+
+**Status:** OPEN
+
+| Field | Value |
+|---|---|
+| Sent (UTC) | 2026-04-28 15:53:18 |
+| Source | cryptoslate |
+| Title | Bitcoin’s comeback is now in the Fed’s hands after big investors piled back in |
+| URL | https://cryptoslate.com/bitcoins-comeback-is-now-in-the-feds-hands-after-big-investors-piled-back-in/ |
+| Entry | $75,949.99 |
+| RSI(14) | 29.0 |
+| Above EMA20 | no |
+| Volume spike | YES |
+| 24h change | -2.40% |
+| Tech alignment | confirms |
+| Confidence | 0.60 (base 0.55) |
+| Impact / Horizon | high / days |
+| SL / TP | $75,666.60 / $76,516.77 |
+| Invalidation kind | swing_low |
+
+### LLM thesis
+CoinShares data shows crypto investment products recorded $1.2 billion in inflows last week, the third consecutive week above $1 billion, with Bitcoin taking $933 million and Ethereum $192 million. Total AUM reached $155 billion, the highest since Feb. 1, though the Apr. 28-29 FOMC decision is cited as a near-term risk variable.
+
+### Manual review (Claude as trader)
+_Pending — ping Claude in chat to fill in this block._
+
+<!-- outcome-block id=006 start -->
+### Outcome (auto-synced from hit-rate tracker)
+
+| Mark | Price | PnL | Notes |
+|---|---|---|---|
+| +1h | PENDING | — | — |
+| +6h | PENDING | — | — |
+| +24h | PENDING | — | — |
+| TP hit ($76,516.77)? | PENDING | — | — |
+| SL hit ($75,666.60)? | PENDING | — | — |
+| Final verdict | PENDING | — | — |
+<!-- outcome-block end -->
+
+---
+
+## #007 — ETH LONG
+<!-- skeptiq:db_id=7 sent_at=2026-04-28T15:53:19.125013 -->
+
+**Status:** OPEN
+
+| Field | Value |
+|---|---|
+| Sent (UTC) | 2026-04-28 15:53:19 |
+| Source | cryptoslate |
+| Title | Bitcoin’s comeback is now in the Fed’s hands after big investors piled back in |
+| URL | https://cryptoslate.com/bitcoins-comeback-is-now-in-the-feds-hands-after-big-investors-piled-back-in/ |
+| Entry | $2,273.44 |
+| RSI(14) | 35.6 |
+| Above EMA20 | no |
+| Volume spike | no |
+| 24h change | -1.78% |
+| Tech alignment | confirms |
+| Confidence | 0.60 (base 0.55) |
+| Impact / Horizon | high / days |
+| SL / TP | $2,258.24 / $2,303.84 |
+| Invalidation kind | swing_low |
+
+### LLM thesis
+CoinShares data shows crypto investment products recorded $1.2 billion in inflows last week, the third consecutive week above $1 billion, with Bitcoin taking $933 million and Ethereum $192 million. Total AUM reached $155 billion, the highest since Feb. 1, though the Apr. 28-29 FOMC decision is cited as a near-term risk variable.
+
+### Manual review (Claude as trader)
+_Pending — ping Claude in chat to fill in this block._
+
+<!-- outcome-block id=007 start -->
+### Outcome (auto-synced from hit-rate tracker)
+
+| Mark | Price | PnL | Notes |
+|---|---|---|---|
+| +1h | PENDING | — | — |
+| +6h | PENDING | — | — |
+| +24h | PENDING | — | — |
+| TP hit ($2,303.84)? | PENDING | — | — |
+| SL hit ($2,258.24)? | PENDING | — | — |
+| Final verdict | PENDING | — | — |
+<!-- outcome-block end -->
+
+---
+
+## #008 — AAVE SHORT
+<!-- skeptiq:db_id=8 sent_at=2026-04-28T15:55:28.551988 -->
+
+**Status:** OPEN
+
+| Field | Value |
+|---|---|
+| Sent (UTC) | 2026-04-28 15:55:28 |
+| Source | coindesk |
+| Title | Industry leaders are pouring hundreds of millions into a rescue plan for Aave users after massive crypto hack |
+| URL | https://www.coindesk.com/tech/2026/04/27/industry-leaders-are-pouring-hundreds-of-millions-into-a-rescue-plan-for-aave-users-after-massive-crypto-hack |
+| Entry | $96.20 |
+| RSI(14) | 44.2 |
+| Above EMA20 | no |
+| Volume spike | YES |
+| 24h change | -2.54% |
+| Tech alignment | confirms |
+| Confidence | 0.67 (base 0.62) |
+| Impact / Horizon | high / days |
+| SL / TP | $98.86 / $90.88 |
+| Invalidation kind | swing_high |
+
+### LLM thesis
+A significant hack has targeted Aave, prompting industry leaders to organize a rescue plan involving hundreds of millions of dollars to cover affected users. The full scope of the exploit and the rescue mechanics are not detailed in the available text.
+
+### Manual review (Claude as trader)
+_Pending — ping Claude in chat to fill in this block._
+
+<!-- outcome-block id=008 start -->
+### Outcome (auto-synced from hit-rate tracker)
+
+| Mark | Price | PnL | Notes |
+|---|---|---|---|
+| +1h | PENDING | — | — |
+| +6h | PENDING | — | — |
+| +24h | PENDING | — | — |
+| TP hit ($90.88)? | PENDING | — | — |
+| SL hit ($98.86)? | PENDING | — | — |
+| Final verdict | PENDING | — | — |
+<!-- outcome-block end -->
+
+---
+
+## #009 — XRP LONG
+<!-- skeptiq:db_id=9 sent_at=2026-04-28T15:57:43.947895 -->
+
+**Status:** OPEN
+
+| Field | Value |
+|---|---|
+| Sent (UTC) | 2026-04-28 15:57:43 |
+| Source | cryptoslate |
+| Title | The South Korean bank powering Upbit is testing Ripple integration for cross-border payments |
+| URL | https://cryptoslate.com/south-koreas-internet-only-bank-kbank-k-bank-has-entered-a-strategic-partnership-with-ripple/ |
+| Entry | $1.37 |
+| RSI(14) | 24.5 |
+| Above EMA20 | no |
+| Volume spike | YES |
+| 24h change | -2.43% |
+| Tech alignment | confirms |
+| Confidence | 0.60 (base 0.55) |
+| Impact / Horizon | medium / days |
+| SL / TP | $1.37 / $1.37 |
+| Invalidation kind | swing_low |
+
+### LLM thesis
+South Korea's Kbank, the sole bank handling KRW real-name account verification for Upbit, has signed a strategic partnership with Ripple to run a proof-of-concept for blockchain-based cross-border remittances. The pilot includes testing on UAE and Thailand corridors and evaluation of Ripple's Palisade wallet and custody platform, but no commercial launch date, settlement asset, or fee model has been confirmed.
+
+### Manual review (Claude as trader)
+_Pending — ping Claude in chat to fill in this block._
+
+<!-- outcome-block id=009 start -->
+### Outcome (auto-synced from hit-rate tracker)
+
+| Mark | Price | PnL | Notes |
+|---|---|---|---|
+| +1h | PENDING | — | — |
+| +6h | PENDING | — | — |
+| +24h | PENDING | — | — |
+| TP hit ($1.37)? | PENDING | — | — |
+| SL hit ($1.37)? | PENDING | — | — |
+| Final verdict | PENDING | — | — |
+<!-- outcome-block end -->
+
+---
