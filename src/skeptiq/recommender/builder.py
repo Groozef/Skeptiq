@@ -42,24 +42,28 @@ RSI_CONFLICT_SHORT_THRESHOLD = 35.0    # shorting when RSI already < 35
 CONFIDENCE_CAP = 0.95
 # Pre-fetch guard: if the LLM's raw confidence is so low that even with the
 # maximum possible bonus we'd still be below MIN_CONFIDENCE, skip Binance.
-MAX_POSSIBLE_BONUS = BONUS_ALIGNMENT_CONFIRMS
+# v0.3 widened — now includes alignment_confirms AND critical-impact bonus
+# (max 0.10 — see IMPACT_BONUS below), so high-impact medium-confidence
+# news still gets fetched. Hardcoded as 0.15 to avoid forward-reference.
+MAX_POSSIBLE_BONUS = BONUS_ALIGNMENT_CONFIRMS + 0.10
 
 # Take-profit distance is a fixed multiple of the stop-loss distance.
 # 2.0 = 1:2 risk-reward (lose 1 unit on SL, win 2 units on TP).
 TAKE_PROFIT_RR_MULTIPLE = 2.0
 
-# Counter-signal severity → confidence penalty (in confidence-point units, i.e.
-# 0.07 = 7pp). Notatki #2 calibration: minor/-2, moderate/-4, strong/-7, critical/-12.
+# Counter-signal severity → confidence penalty (in confidence-point units).
+# v0.2.1 values were too harsh: 16/16 watchlist candidates over a 39-min run
+# got dropped by counter-overload while LLM honestly tagged 3-4 caveats per
+# news. v0.3 softens by ~30% across the board.
 COUNTER_PENALTY: dict[str, float] = {
-    "minor": 0.02,
-    "moderate": 0.04,
-    "strong": 0.07,
-    "critical": 0.12,
+    "minor": 0.01,      # was 0.02
+    "moderate": 0.03,   # was 0.04
+    "strong": 0.05,     # was 0.07
+    "critical": 0.10,   # was 0.12
 }
-# If the SUM of counter-signal penalties exceeds this threshold, drop the
-# recommendation entirely — the LLM is signalling that its own counter-args
-# overwhelm its directional thesis.
-COUNTER_TOTAL_DROP_THRESHOLD = 0.15
+# Drop threshold also raised — three "strong" (=15pp) is no longer auto-drop
+# unless combined with secondary mention.
+COUNTER_TOTAL_DROP_THRESHOLD = 0.20  # was 0.15
 
 # Notatki-3: if the SL distance from entry exceeds this fraction, flag the
 # signal as high-risk and apply a -0.05 confidence penalty. Wide SL means
@@ -68,10 +72,35 @@ COUNTER_TOTAL_DROP_THRESHOLD = 0.15
 HIGH_RISK_SL_DISTANCE = 0.05
 PENALTY_HIGH_RISK_SL = 0.05
 
-# Notatki-4: when a watchlist ticker is only a secondary mention in the
-# article (main subject is something else), apply this penalty. -10pp is
-# typically enough to drop the signal below MIN_CONFIDENCE on its own.
-PENALTY_SECONDARY_MENTION = 0.10
+# Secondary-mention penalty (notatki-4). v0.3 lowered from 0.10 → 0.05 — the
+# previous magnitude was sole-killer of any borderline signal where the
+# watchlist ticker was even slightly secondary to a related project.
+PENALTY_SECONDARY_MENTION = 0.05  # was 0.10
+
+# v0.3: bonus for high-impact news. The intuition is that high-impact events
+# (ETF approval, FOMC, hack of top-20 venue) deserve a confidence push because
+# the LLM's `impact_magnitude` rubric is conservative — when it labels
+# critical/high, the news is genuinely in that tier.
+IMPACT_BONUS: dict[str, float] = {
+    "low": 0.0,
+    "medium": 0.0,
+    "high": 0.05,
+    "critical": 0.10,
+}
+
+# v0.3: per-impact MIN_CONFIDENCE offset. Idea: a high/critical event with
+# raw 0.55 confidence is worth a Telegram alert; a low-impact 0.55 is noise.
+# Applied as `effective_min = settings.min_confidence + offset`.
+#   low:    +0.05 (need 0.65 if base is 0.60)
+#   medium:  0.00 (use settings as-is)
+#   high:   -0.05 (allow 0.55 to fire if MIN=0.60)
+#   critical: -0.10
+IMPACT_CONFIDENCE_OFFSET: dict[str, float] = {
+    "low": 0.05,
+    "medium": 0.0,
+    "high": -0.05,
+    "critical": -0.10,
+}
 
 # Notatki — auto-expire window per horizon. Beyond expires_at, the hit-rate
 # tracker writes a final outcome (tp_hit / sl_hit / expired) so signals don't
@@ -105,6 +134,7 @@ def adjust_confidence(
     alignment: TechnicalAlignment,
     rsi: float,
     counter_signals: list[CounterSignal] | None = None,
+    impact: str | None = None,
 ) -> tuple[float, list[str], bool]:
     """Apply technical-conflict penalties / agreement bonuses / counter-signal
     severity penalties to the LLM's raw confidence.
@@ -153,6 +183,12 @@ def adjust_confidence(
         adjusted -= PENALTY_RSI_CONFLICT
         reasons.append(f"rsi_overbought_for_long_-{PENALTY_RSI_CONFLICT:.2f}")
 
+    if impact is not None:
+        bonus = IMPACT_BONUS.get(impact, 0.0)
+        if bonus > 0:
+            adjusted += bonus
+            reasons.append(f"impact_{impact}_+{bonus:.2f}")
+
     counter_total = 0.0
     for cs in counter_signals or []:
         penalty = COUNTER_PENALTY.get(cs.severity, 0.0)
@@ -194,8 +230,11 @@ def passes_pre_filter(analysis: NewsAnalysis, settings: Settings) -> bool:
         return False
     if IMPACT_ORDER[analysis.impact_magnitude] < IMPACT_ORDER[settings.min_impact]:
         return False
-    # If even the best-case bonus can't bring this above the threshold, bail.
-    return analysis.confidence + MAX_POSSIBLE_BONUS >= settings.min_confidence
+    # v0.3: per-impact effective min, accounting for max possible bonus.
+    effective_min = settings.min_confidence + IMPACT_CONFIDENCE_OFFSET.get(
+        analysis.impact_magnitude, 0.0
+    )
+    return analysis.confidence + MAX_POSSIBLE_BONUS >= effective_min
 
 
 def direction_from_sentiment(sentiment: str) -> Direction:
@@ -382,6 +421,7 @@ class RecommendationBuilder:
                 alignment=alignment,
                 rsi=tc.rsi_14,
                 counter_signals=list(analysis.counter_signals),
+                impact=analysis.impact_magnitude,
             )
 
             # Notatki-3: wide SL flag.
@@ -410,14 +450,18 @@ class RecommendationBuilder:
                 )
                 continue
 
-            if adjusted < self._settings.min_confidence:
+            effective_min = self._settings.min_confidence + IMPACT_CONFIDENCE_OFFSET.get(
+                analysis.impact_magnitude, 0.0
+            )
+            if adjusted < effective_min:
                 log.info(
                     "recommendation_post_adjust_dropped",
                     item_id=item.id,
                     ticker=ticker,
                     base=round(analysis.confidence, 2),
                     adjusted=round(adjusted, 2),
-                    min_required=self._settings.min_confidence,
+                    min_required=round(effective_min, 2),
+                    impact=analysis.impact_magnitude,
                     alignment=alignment,
                     rsi=round(tc.rsi_14, 1),
                     adjustments=adjustments,

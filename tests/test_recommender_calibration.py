@@ -85,7 +85,7 @@ def test_adjust_contradicts_alignment() -> None:
     assert any("alignment_contradicts" in r for r in reasons)
 
 
-def test_adjust_with_strong_counter_signal_subtracts_0_07() -> None:
+def test_adjust_with_strong_counter_signal_subtracts_penalty() -> None:
     from skeptiq.schemas import CounterSignal
 
     cs = [CounterSignal(text="article body is sparse", severity="strong")]
@@ -96,17 +96,17 @@ def test_adjust_with_strong_counter_signal_subtracts_0_07() -> None:
         rsi=55,
         counter_signals=cs,
     )
-    # 0.70 + 0.05 (confirms) - 0.07 (strong) = 0.68
-    assert adjusted == pytest.approx(0.68)
+    # v0.3: 0.70 + 0.05 (confirms) - 0.05 (strong) = 0.70
+    assert adjusted == pytest.approx(0.70)
     assert drop is False
-    assert any(r == "counter_strong_-0.07" for r in reasons)
+    assert any(r == "counter_strong_-0.05" for r in reasons)
 
 
-def test_adjust_three_strong_counters_triggers_drop() -> None:
+def test_adjust_four_strong_counters_triggers_drop() -> None:
     from skeptiq.schemas import CounterSignal
 
     cs = [
-        CounterSignal(text=f"caveat #{i}", severity="strong") for i in range(3)
+        CounterSignal(text=f"caveat #{i}", severity="strong") for i in range(4)
     ]
     _adjusted, reasons, drop = adjust_confidence(
         0.80,
@@ -115,15 +115,15 @@ def test_adjust_three_strong_counters_triggers_drop() -> None:
         rsi=55,
         counter_signals=cs,
     )
-    # Three strong = -0.21pp, exceeds 0.15 drop threshold.
+    # v0.3: four strong = 0.20 = drop threshold (>=).
     assert drop is True
     assert any("counter_total_drop" in r for r in reasons)
 
 
-def test_adjust_two_strong_just_below_drop_threshold() -> None:
+def test_adjust_three_strong_just_below_drop_threshold() -> None:
     from skeptiq.schemas import CounterSignal
 
-    cs = [CounterSignal(text=f"c#{i}", severity="strong") for i in range(2)]
+    cs = [CounterSignal(text=f"c#{i}", severity="strong") for i in range(3)]
     _adjusted, _, drop = adjust_confidence(
         0.70,
         direction="long",
@@ -131,17 +131,18 @@ def test_adjust_two_strong_just_below_drop_threshold() -> None:
         rsi=55,
         counter_signals=cs,
     )
-    # Two strong = -0.14pp, just under 0.15 threshold; no drop.
+    # v0.3: three strong = 0.15 < 0.20 threshold; no drop.
     assert drop is False
 
 
 def test_pre_filter_admits_borderline_with_max_bonus(settings: Settings) -> None:
-    # base 0.56, MIN_CONFIDENCE=0.6: with +0.05 bonus could pass, so admit.
-    a = _analysis(confidence=0.56)
+    # v0.3: high impact gives -0.05 offset, max bonus 0.15.
+    # base 0.40 high: 0.40 + 0.15 = 0.55 >= 0.55 (eff_min for high) -> admit.
+    a = _analysis(confidence=0.40, impact_magnitude="high")
     assert passes_pre_filter(a, settings) is True
 
 
 def test_pre_filter_rejects_below_max_bonus_threshold(settings: Settings) -> None:
-    # base 0.50, MIN_CONFIDENCE=0.6: even +0.05 max bonus = 0.55 < 0.6 -> drop.
-    a = _analysis(confidence=0.50)
+    # v0.3: base 0.30 high: 0.30 + 0.15 = 0.45 < 0.55 (eff_min) -> drop.
+    a = _analysis(confidence=0.30, impact_magnitude="high")
     assert passes_pre_filter(a, settings) is False

@@ -64,7 +64,9 @@ def test_filter_rejects_neutral_sentiment(settings: Settings) -> None:
 
 
 def test_filter_rejects_low_confidence(settings: Settings) -> None:
-    assert passes_filter(_analysis(confidence=0.4), settings) is False
+    # v0.3: high impact gives -0.05 offset (eff_min=0.55) and max bonus 0.15.
+    # base 0.30 + 0.15 = 0.45 < 0.55 -> drop.
+    assert passes_filter(_analysis(confidence=0.3), settings) is False
 
 
 def test_filter_rejects_off_watchlist(settings: Settings) -> None:
@@ -236,9 +238,10 @@ async def test_build_emits_one_rec_per_watchlist_ticker(
     assert btc.invalidation_level == 68_500.0
     assert btc.invalidation_kind == "swing_low"
     assert eth.invalidation_kind == "atr"
-    # base 0.7 + alignment_confirms +0.05 - counter_minor -0.02 = 0.73
+    # v0.3: base 0.7 + alignment_confirms +0.05 - counter_minor -0.01
+    # + impact_high +0.05 = 0.79.
     # SL distance 2.1% (under 5%), subject = primary -> no further penalty.
-    assert btc.confidence == pytest.approx(0.73)
+    assert btc.confidence == pytest.approx(0.79)
     assert btc.base_confidence == pytest.approx(0.7)
     assert any("alignment_confirms" in adj for adj in btc.confidence_adjustments)
 
