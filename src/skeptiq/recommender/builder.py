@@ -12,6 +12,7 @@ from skeptiq.market.indicators import (
     compute_invalidation_level,
     compute_technical_context,
 )
+from skeptiq.market.macro import MacroProvider, alignment_for_direction
 from skeptiq.recommender.dedup import find_recent_duplicate
 from skeptiq.recommender.subject import detect_subject
 from skeptiq.schemas import (
@@ -76,6 +77,12 @@ PENALTY_HIGH_RISK_SL = 0.05
 # previous magnitude was sole-killer of any borderline signal where the
 # watchlist ticker was even slightly secondary to a related project.
 PENALTY_SECONDARY_MENTION = 0.05  # was 0.10
+
+# v0.3: macro context — risk-on/risk-off regime from SPX, DXY, VIX. When the
+# broader market direction directly contradicts the news-driven signal,
+# discount confidence; when it supports, small bonus.
+PENALTY_MACRO_CONFLICT = 0.10
+BONUS_MACRO_SUPPORT = 0.05
 
 # v0.3: bonus for high-impact news. The intuition is that high-impact events
 # (ETF approval, FOMC, hack of top-20 venue) deserve a confidence push because
@@ -322,9 +329,19 @@ passes_filter = passes_pre_filter
 
 
 class RecommendationBuilder:
-    def __init__(self, *, settings: Settings, binance: BinanceClient) -> None:
+    def __init__(
+        self,
+        *,
+        settings: Settings,
+        binance: BinanceClient,
+        macro: MacroProvider | None = None,
+    ) -> None:
         self._settings = settings
         self._binance = binance
+        # macro is optional — when None, the macro adjustment is skipped
+        # entirely (useful in tests). Production main.py wires a real
+        # MacroProvider so signals see SPX/DXY/VIX context.
+        self._macro = macro
 
     async def build(
         self,
@@ -439,6 +456,27 @@ class RecommendationBuilder:
                 adjustments.append(
                     f"secondary_mention_-{PENALTY_SECONDARY_MENTION:.2f}"
                 )
+
+            # v0.3: macro regime adjustment.
+            if self._macro is not None:
+                try:
+                    macro_ctx = await self._macro.get_context()
+                    macro_align = alignment_for_direction(macro_ctx, direction)
+                    if macro_align == "conflict":
+                        adjusted = max(0.0, adjusted - PENALTY_MACRO_CONFLICT)
+                        adjustments.append(
+                            f"macro_conflict_score{macro_ctx.score:+d}"
+                            f"_-{PENALTY_MACRO_CONFLICT:.2f}"
+                        )
+                    elif macro_align == "support":
+                        adjusted = min(CONFIDENCE_CAP, adjusted + BONUS_MACRO_SUPPORT)
+                        adjustments.append(
+                            f"macro_support_score{macro_ctx.score:+d}"
+                            f"_+{BONUS_MACRO_SUPPORT:.2f}"
+                        )
+                    # neutral / unavailable -> no adjustment
+                except Exception as exc:
+                    log.warning("macro_adjustment_skipped", error=str(exc))
 
             if drop:
                 log.info(
