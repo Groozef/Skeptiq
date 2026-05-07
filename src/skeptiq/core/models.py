@@ -104,6 +104,10 @@ class Recommendation(Base):
     base_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     confidence_adjusted: Mapped[float | None] = mapped_column(Float, nullable=True)
     confidence_adjustments_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # v0.4 news_class — nullable so v0.1-v0.3 rows survive lightweight migration.
+    # Values: "impulsive" / "trend". "baseline" is dropped before persistence,
+    # so it never appears in this column.
+    news_class: Mapped[str | None] = mapped_column(String(16), nullable=True)
     invalidation_level: Mapped[float | None] = mapped_column(Float, nullable=True)
     invalidation_kind: Mapped[str | None] = mapped_column(String(16), nullable=True)
     stop_loss: Mapped[float | None] = mapped_column(Float, nullable=True)

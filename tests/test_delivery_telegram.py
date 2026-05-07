@@ -27,6 +27,7 @@ def _sample_rec() -> Recommendation:
         confidence_adjustments=[],
         impact="high",
         horizon="hours",
+        news_class="trend",
         summary="Spot ETF inflow $1.2B.",
         directional_arguments=[
             "Institutional demand confirmed at scale",

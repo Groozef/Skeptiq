@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from skeptiq.schemas.analysis import ImpactMagnitude, TimeHorizon
+from skeptiq.schemas.analysis import ImpactMagnitude, NewsClass, TimeHorizon
 from skeptiq.schemas.technical import TechnicalContext
 
 Direction = Literal["long", "short"]
@@ -33,6 +33,12 @@ class Recommendation(BaseModel):
     )
     impact: ImpactMagnitude
     horizon: TimeHorizon
+    news_class: NewsClass = Field(
+        description="Magnitude class set by the LLM analyzer. Affects ATR-multiplier "
+        "on the stop-loss distance and adds a small confidence bonus when "
+        "impulsive. Only impulsive/trend reach this point — baseline is "
+        "dropped earlier in passes_pre_filter.",
+    )
     summary: str
     directional_arguments: list[str] = Field(
         description="Bulletized arguments supporting the directional call. "
