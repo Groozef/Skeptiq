@@ -47,6 +47,10 @@ _LABELS: dict[Language, dict[str, str]] = {
         "imp_medium": "MEDIUM",
         "imp_high": "HIGH",
         "imp_critical": "CRITICAL",
+        # news_class values (baseline never displayed — dropped before send)
+        "class": "Class",
+        "class_impulsive": "IMPULSIVE",
+        "class_trend": "TREND",
         # horizon values
         "hor_immediate": "immediate",
         "hor_hours": "hours",
@@ -95,6 +99,9 @@ _LABELS: dict[Language, dict[str, str]] = {
         "imp_medium": "СРЕДНЯЯ",
         "imp_high": "ВЫСОКАЯ",
         "imp_critical": "КРИТИЧЕСКАЯ",
+        "class": "Класс",
+        "class_impulsive": "ИМПУЛЬС",
+        "class_trend": "ТРЕНД",
         "hor_immediate": "немедленно",
         "hor_hours": "часы",
         "hor_days": "дни",

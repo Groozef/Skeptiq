@@ -109,12 +109,14 @@ def format_message(rec: Recommendation, *, tz: ZoneInfo, language: Language = "e
     align_label = t(language, f"align_{rec.technical_alignment}")
     inv_kind_label = t(language, invalidation_kind_key)
     inv_label = t(language, invalidation_label_key)
+    class_label = t(language, f"class_{rec.news_class}")
 
     lines = [
         f"{direction_emoji} *{_md(signal_label)} — {_md(rec.ticker)}*",
         (
             f"{_md(t(language, 'confidence'))}: {confidence_str} · "
             f"{_md(t(language, 'impact'))}: {_md(impact_label)} · "
+            f"{_md(t(language, 'class'))}: {_md(class_label)} · "
             f"{_md(t(language, 'horizon'))}: {_md(horizon_label)}"
         ),
         "",
@@ -176,6 +178,7 @@ def _format_multi(
     tickers_header = ", ".join(_md(r.ticker) for r in recs)
     impact_label = t(language, f"imp_{primary.impact}")
     horizon_label = t(language, f"hor_{primary.horizon}")
+    class_label = t(language, f"class_{primary.news_class}")
 
     detected_local = primary.detected_at.astimezone(tz)
     detected_str = detected_local.strftime("%d %b %Y, %H:%M")
@@ -188,6 +191,7 @@ def _format_multi(
         f"{direction_emoji} *{_md(signal_label)} — {tickers_header}*",
         (
             f"{_md(t(language, 'impact'))}: {_md(impact_label)} · "
+            f"{_md(t(language, 'class'))}: {_md(class_label)} · "
             f"{_md(t(language, 'horizon'))}: {_md(horizon_label)}"
         ),
         "",
