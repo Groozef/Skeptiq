@@ -170,7 +170,7 @@ async def test_build_emits_one_rec_per_watchlist_ticker(
         return contexts[ticker]
 
     def _fake_compute_invalidation(
-        direction: str, _klines: list[Any]
+        direction: str, _klines: list[Any], **_kw: Any
     ) -> tuple[float, str]:
         # The harness only runs one direction per build call, so we look up by
         # whichever ticker is in flight via the patched tech-context call order.

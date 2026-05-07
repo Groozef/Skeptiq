@@ -10,6 +10,7 @@ from skeptiq.market.binance import BinanceClient
 from skeptiq.market.funding import FundingProvider
 from skeptiq.market.funding import alignment_for_direction as funding_alignment
 from skeptiq.market.indicators import (
+    ATR_MULTIPLE,
     HORIZON_TO_INVALIDATION_INTERVAL,
     compute_invalidation_level,
     compute_technical_context,
@@ -23,6 +24,7 @@ from skeptiq.schemas import (
     CounterSignal,
     Direction,
     NewsAnalysis,
+    NewsClass,
     Recommendation,
     TechnicalAlignment,
     TechnicalContext,
@@ -46,10 +48,11 @@ RSI_CONFLICT_SHORT_THRESHOLD = 35.0    # shorting when RSI already < 35
 CONFIDENCE_CAP = 0.95
 # Pre-fetch guard: if the LLM's raw confidence is so low that even with the
 # maximum possible bonus we'd still be below MIN_CONFIDENCE, skip Binance.
-# v0.3 widened — now includes alignment_confirms AND critical-impact bonus
-# (max 0.10 — see IMPACT_BONUS below), so high-impact medium-confidence
-# news still gets fetched. Hardcoded as 0.15 to avoid forward-reference.
-MAX_POSSIBLE_BONUS = BONUS_ALIGNMENT_CONFIRMS + 0.10
+# v0.4 widened to include impulsive news bonus (+0.05) on top of
+# alignment_confirms (+0.05) and critical-impact (+0.10). Hardcoded as
+# 0.20 to avoid forward references; matches BONUS_ALIGNMENT_CONFIRMS +
+# IMPACT_BONUS["critical"] + BONUS_IMPULSIVE_NEWS below.
+MAX_POSSIBLE_BONUS = 0.20
 
 # Take-profit distance is a fixed multiple of the stop-loss distance.
 # 2.0 = 1:2 risk-reward (lose 1 unit on SL, win 2 units on TP).
@@ -104,6 +107,20 @@ IMPACT_BONUS: dict[str, float] = {
     "critical": 0.10,
 }
 
+# v0.4: news_class — orthogonal magnitude class set by the LLM.
+# - impulsive (FOMC surprise, hack, ETF approval): wider stops + small
+#   confidence bonus, since the news mechanism produces 3-10% moves and
+#   tight ATR x1.5 stops would get noise-stopped before the move plays out.
+# - trend (large inflows, treasury moves): current default, ATR x1.5 unchanged.
+# - baseline (minor partnerships, opinion, rehashes): expected <1% moves,
+#   not actionable with our stop sizing — dropped before sending.
+NEWS_CLASS_ATR_MULTIPLIER: dict[str, float] = {
+    "impulsive": 1.5,  # widens ATR component of SL by 50% (1.5*1.5 = 2.25 base ATR)
+    "trend": 1.0,      # current behavior preserved
+    # baseline: dropped in passes_pre_filter, never reaches invalidation calc.
+}
+BONUS_IMPULSIVE_NEWS = 0.05
+
 # v0.3: per-impact MIN_CONFIDENCE offset. Idea: a high/critical event with
 # raw 0.55 confidence is worth a Telegram alert; a low-impact 0.55 is noise.
 # Applied as `effective_min = settings.min_confidence + offset`.
@@ -151,6 +168,7 @@ def adjust_confidence(
     rsi: float,
     counter_signals: list[CounterSignal] | None = None,
     impact: str | None = None,
+    news_class: NewsClass | None = None,
 ) -> tuple[float, list[str], bool]:
     """Apply technical-conflict penalties / agreement bonuses / counter-signal
     severity penalties to the LLM's raw confidence.
@@ -205,6 +223,10 @@ def adjust_confidence(
             adjusted += bonus
             reasons.append(f"impact_{impact}_+{bonus:.2f}")
 
+    if news_class == "impulsive":
+        adjusted += BONUS_IMPULSIVE_NEWS
+        reasons.append(f"news_impulsive_+{BONUS_IMPULSIVE_NEWS:.2f}")
+
     counter_total = 0.0
     for cs in counter_signals or []:
         penalty = COUNTER_PENALTY.get(cs.severity, 0.0)
@@ -245,6 +267,10 @@ def passes_pre_filter(analysis: NewsAnalysis, settings: Settings) -> bool:
     if not (set(analysis.affected_tickers) & settings.watchlist_set):
         return False
     if IMPACT_ORDER[analysis.impact_magnitude] < IMPACT_ORDER[settings.min_impact]:
+        return False
+    # v0.4: baseline-class news doesn't move price enough for ATR-based
+    # entries to make sense. Drop before fetching tech context.
+    if analysis.news_class == "baseline":
         return False
     # v0.3: per-impact effective min, accounting for max possible bonus.
     effective_min = settings.min_confidence + IMPACT_CONFIDENCE_OFFSET.get(
@@ -434,8 +460,16 @@ class RecommendationBuilder:
                     inv_klines = await self._binance.fetch_klines(
                         ticker, interval=inv_interval
                     )
+                # v0.4: news_class scales the ATR component of the stop.
+                # impulsive (x1.5 -> 2.25 base ATR) gives the move room to
+                # play out without getting noise-stopped; trend keeps
+                # current ATR x1.5 sizing. Swing-low/high paths are
+                # untouched — structure stays structure.
+                atr_mult = ATR_MULTIPLE * NEWS_CLASS_ATR_MULTIPLIER[
+                    analysis.news_class
+                ]
                 invalidation_level, invalidation_kind = compute_invalidation_level(
-                    direction, inv_klines
+                    direction, inv_klines, atr_multiple=atr_mult
                 )
             except Exception as exc:
                 log.warning(
@@ -453,6 +487,7 @@ class RecommendationBuilder:
                 rsi=tc.rsi_14,
                 counter_signals=list(analysis.counter_signals),
                 impact=analysis.impact_magnitude,
+                news_class=analysis.news_class,
             )
 
             # Notatki-3: wide SL flag.
