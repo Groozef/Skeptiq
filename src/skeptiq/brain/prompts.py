@@ -92,6 +92,34 @@ FIELD GUIDANCE
      mention; small-cap project marketing; generic "X may pump" speculation.
    When torn between two tiers, choose the lower one.
 
+4b. news_class - one of: impulsive, trend, baseline. ORTHOGONAL to
+   impact_magnitude. impact captures how newsworthy/important the event is;
+   news_class captures the EXPECTED PRICE-MOVE MAGNITUDE the news mechanism
+   typically produces. A story can be high-impact but trend-class (large ETF
+   inflow: matters a lot, but moves price 1-3%, not 10%).
+   - impulsive: structural shock that historically produces 3-10% moves
+     within hours. Examples: FOMC surprise (off-consensus rate change,
+     unexpected QT pivot), confirmed hack/exploit at a top-20 venue, ETF
+     approval/denial decision day, blanket regulatory ban or permit in a
+     major jurisdiction, hard fork going live, surprise sovereign adoption,
+     critical bridge/protocol exploit.
+   - trend: flow or directional news that historically produces 1-3% moves
+     over hours-to-days. Examples: ETF inflow/outflow streaks (>$500M),
+     treasury accumulation or sale by named entity, large token unlock,
+     whale on-chain moves, named partnership with quantified terms,
+     successful mainnet upgrade with measurable adoption, central-bank
+     hawkish/dovish commentary without rate action.
+   - baseline: minor news that historically produces <1% moves or none.
+     Examples: small-cap partnerships, minor exchange listings (non-Tier-1),
+     opinion/commentary without new fact, repeated rehashes, influencer
+     statements without policy authority, marketing announcements,
+     analyst price-target updates, inflows <$100M, generic "DeFi gains
+     traction" stories.
+   Baseline items are DROPPED before sending — they don't move price enough
+   for ATR-based stop-loss / take-profit setups to make sense. Be conservative:
+   when torn between trend and baseline, choose baseline. When torn between
+   impulsive and trend, choose trend.
+
 5. confidence - float in [0.0, 1.0].
    Interpret this as a calibrated probability that your sentiment + impact
    assessment will look correct in hindsight ~24 hours from now. 0.7 means:

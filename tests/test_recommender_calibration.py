@@ -29,6 +29,7 @@ def _analysis(**overrides: object) -> NewsAnalysis:
         "event_subject": "test event placeholder",
         "event_key_numbers": [],
         "event_related_projects": [],
+        "news_class": "trend",
     }
     base.update(overrides)
     return NewsAnalysis.model_validate(base)

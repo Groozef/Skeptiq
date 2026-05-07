@@ -6,6 +6,12 @@ Sentiment = Literal["very_bullish", "bullish", "neutral", "bearish", "very_beari
 ImpactMagnitude = Literal["low", "medium", "high", "critical"]
 TimeHorizon = Literal["immediate", "hours", "days", "weeks"]
 CounterSeverity = Literal["minor", "moderate", "strong", "critical"]
+# v0.4: magnitude class — orthogonal to impact_magnitude. impact captures
+# how big the news is (rubric-bound); news_class captures expected price
+# move size, which depends on news mechanism more than newsworthiness.
+# Used downstream to set ATR-multiplier on stops and to drop baseline-class
+# items entirely (they don't move price enough for actionable entries).
+NewsClass = Literal["impulsive", "trend", "baseline"]
 
 
 class CounterSignal(BaseModel):
@@ -40,6 +46,17 @@ class NewsAnalysis(BaseModel):
     )
     impact_magnitude: ImpactMagnitude = Field(
         description="Strict rubric: critical/high/medium/low. Choose the lower tier when torn.",
+    )
+    news_class: NewsClass = Field(
+        description="Expected price-move magnitude class — orthogonal to impact. "
+        "impulsive: structural shock, expected move 3-10% "
+        "(FOMC surprise, hack, ETF approval, regulatory ban/permit). "
+        "trend: flow confirms direction, expected move 1-3% "
+        "(ETF inflows >$500M, treasury accumulation, large unlock, whale moves). "
+        "baseline: minor noise, expected <1% "
+        "(partnerships, listings, minor upgrades, small inflows). "
+        "Baseline items are dropped before sending — they don't move price "
+        "enough for actionable entries with ATR-based stops.",
     )
     confidence: float = Field(
         ge=0.0,

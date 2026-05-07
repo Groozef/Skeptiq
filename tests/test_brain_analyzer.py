@@ -50,6 +50,7 @@ async def test_analyze_item_persists_and_marks_processed(
         event_subject="ETF inflow milestone",
         event_key_numbers=["$1B"],
         event_related_projects=[],
+        news_class="trend",
     )
 
     async with session_scope() as session:

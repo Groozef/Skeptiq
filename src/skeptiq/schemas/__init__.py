@@ -4,6 +4,7 @@ from skeptiq.schemas.analysis import (
     CounterSignal,
     ImpactMagnitude,
     NewsAnalysis,
+    NewsClass,
     Sentiment,
     TimeHorizon,
 )
@@ -23,6 +24,7 @@ __all__ = [
     "ImpactMagnitude",
     "InvalidationKind",
     "NewsAnalysis",
+    "NewsClass",
     "Recommendation",
     "RsiState",
     "Sentiment",
