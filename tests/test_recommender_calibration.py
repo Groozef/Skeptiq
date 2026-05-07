@@ -5,6 +5,7 @@ import pytest
 from skeptiq.core.config import Settings
 from skeptiq.recommender.builder import (
     BONUS_ALIGNMENT_CONFIRMS,
+    BONUS_IMPULSIVE_NEWS,
     PENALTY_ALIGNMENT_CONTRADICTS,
     PENALTY_ALIGNMENT_NEUTRAL,
     PENALTY_RSI_CONFLICT,
@@ -137,13 +138,64 @@ def test_adjust_three_strong_just_below_drop_threshold() -> None:
 
 
 def test_pre_filter_admits_borderline_with_max_bonus(settings: Settings) -> None:
-    # v0.3: high impact gives -0.05 offset, max bonus 0.15.
-    # base 0.40 high: 0.40 + 0.15 = 0.55 >= 0.55 (eff_min for high) -> admit.
+    # v0.4: high impact gives -0.05 offset, max bonus 0.20 (alignment +0.05,
+    # critical-impact +0.10, impulsive +0.05). For trend default:
+    # base 0.40 high: 0.40 + 0.20 = 0.60 >= 0.55 (eff_min for high) -> admit.
     a = _analysis(confidence=0.40, impact_magnitude="high")
     assert passes_pre_filter(a, settings) is True
 
 
 def test_pre_filter_rejects_below_max_bonus_threshold(settings: Settings) -> None:
-    # v0.3: base 0.30 high: 0.30 + 0.15 = 0.45 < 0.55 (eff_min) -> drop.
+    # v0.4: base 0.30 high: 0.30 + 0.20 = 0.50 < 0.55 (eff_min) -> drop.
     a = _analysis(confidence=0.30, impact_magnitude="high")
     assert passes_pre_filter(a, settings) is False
+
+
+def test_pre_filter_drops_baseline_class(settings: Settings) -> None:
+    # v0.4: baseline-class news doesn't move price enough for ATR-based
+    # entries. Drop before Binance fetch.
+    a = _analysis(confidence=0.85, impact_magnitude="high", news_class="baseline")
+    assert passes_pre_filter(a, settings) is False
+
+
+def test_pre_filter_admits_impulsive_class(settings: Settings) -> None:
+    a = _analysis(confidence=0.65, impact_magnitude="high", news_class="impulsive")
+    assert passes_pre_filter(a, settings) is True
+
+
+def test_adjust_with_impulsive_class_adds_bonus() -> None:
+    adjusted, reasons, _ = adjust_confidence(
+        0.60,
+        direction="long",
+        alignment="mixed",
+        rsi=55,
+        news_class="impulsive",
+    )
+    # 0.60 + BONUS_IMPULSIVE_NEWS (+0.05) = 0.65 (alignment mixed = +0.0)
+    assert adjusted == pytest.approx(0.60 + BONUS_IMPULSIVE_NEWS)
+    assert any(r == f"news_impulsive_+{BONUS_IMPULSIVE_NEWS:.2f}" for r in reasons)
+
+
+def test_adjust_with_trend_class_adds_no_bonus() -> None:
+    adjusted, reasons, _ = adjust_confidence(
+        0.60,
+        direction="long",
+        alignment="mixed",
+        rsi=55,
+        news_class="trend",
+    )
+    # trend class is the baseline behaviour — no bonus, no penalty.
+    assert adjusted == pytest.approx(0.60)
+    assert not any("news_" in r for r in reasons)
+
+
+def test_adjust_without_news_class_unchanged() -> None:
+    # Backwards-compat: when news_class is omitted, behaviour matches v0.3.
+    adjusted, reasons, _ = adjust_confidence(
+        0.60,
+        direction="long",
+        alignment="mixed",
+        rsi=55,
+    )
+    assert adjusted == pytest.approx(0.60)
+    assert not any("news_" in r for r in reasons)

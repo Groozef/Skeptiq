@@ -152,3 +152,15 @@ def test_format_message_short_russian_says_pochemu_vniz() -> None:
     assert "SHORT сигнал" in msg
     assert "Почему вниз:" in msg
     assert "Тезис мёртв выше" in msg
+
+
+def test_format_message_renders_news_class_badge_en() -> None:
+    rec = _sample_rec().model_copy(update={"news_class": "impulsive"})
+    msg = format_message(rec, tz=ZoneInfo("UTC"), language="en")
+    assert "Class: IMPULSIVE" in msg
+
+
+def test_format_message_renders_news_class_badge_ru() -> None:
+    rec = _sample_rec().model_copy(update={"news_class": "trend"})
+    msg = format_message(rec, tz=ZoneInfo("UTC"), language="ru")
+    assert "Класс: ТРЕНД" in msg
