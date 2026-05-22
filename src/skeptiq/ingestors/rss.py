@@ -13,7 +13,14 @@ from skeptiq.ingestors.base import BaseIngestor, RawItem
 
 log = get_logger(__name__)
 
-USER_AGENT = "Skeptiq/0.1 (+https://github.com/Groozef/Skeptiq)"
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+)
+ACCEPT_HEADER = (
+    "application/rss+xml, application/atom+xml, application/xml;q=0.9, "
+    "text/xml;q=0.8, */*;q=0.5"
+)
 
 
 @dataclass(slots=True, kw_only=True, frozen=True)
@@ -27,7 +34,10 @@ DEFAULT_FEEDS: tuple[RssFeedConfig, ...] = (
     RssFeedConfig(name="cointelegraph", url="https://cointelegraph.com/rss"),
     RssFeedConfig(name="theblock", url="https://www.theblock.co/rss.xml"),
     RssFeedConfig(name="decrypt", url="https://decrypt.co/feed"),
-    RssFeedConfig(name="bitcoinmagazine", url="https://bitcoinmagazine.com/.rss/full/"),
+    # bitcoinmagazine.com replaced 2026-04-28 — Cloudflare JS challenge made
+    # the feed inaccessible without a headless-browser scraper. cryptoslate is
+    # a distinct editorial source of comparable depth and parses cleanly.
+    RssFeedConfig(name="cryptoslate", url="https://cryptoslate.com/feed/"),
 )
 
 
@@ -44,7 +54,8 @@ class RssIngestor(BaseIngestor):
         self._feed = feed
         self._http = http_client or httpx.AsyncClient(
             timeout=httpx.Timeout(20.0),
-            headers={"User-Agent": USER_AGENT},
+            headers={"User-Agent": USER_AGENT, "Accept": ACCEPT_HEADER},
+            follow_redirects=True,
         )
         self._owns_http = http_client is None
 

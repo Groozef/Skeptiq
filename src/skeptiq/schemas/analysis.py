@@ -5,6 +5,17 @@ from pydantic import BaseModel, Field
 Sentiment = Literal["very_bullish", "bullish", "neutral", "bearish", "very_bearish"]
 ImpactMagnitude = Literal["low", "medium", "high", "critical"]
 TimeHorizon = Literal["immediate", "hours", "days", "weeks"]
+CounterSeverity = Literal["minor", "moderate", "strong", "critical"]
+
+
+class CounterSignal(BaseModel):
+    text: str = Field(
+        description="The counter-argument or risk itself. Specific, no boilerplate."
+    )
+    severity: CounterSeverity = Field(
+        description="How damaging this counter-signal is to the directional thesis. "
+        "minor / moderate / strong / critical. Used to penalize confidence."
+    )
 
 IMPACT_ORDER: dict[ImpactMagnitude, int] = {
     "low": 0,
@@ -53,8 +64,29 @@ class NewsAnalysis(BaseModel):
         description="3-5 sentences. How sentiment AND impact were derived. "
         "Reference the rubric tier used. Cite the strongest evidence.",
     )
-    counter_signals: list[str] = Field(
+    counter_signals: list[CounterSignal] = Field(
         min_length=1,
-        description="At least one specific counter-argument or risk. "
-        "Mandatory even for very_bullish/very_bearish. No boilerplate.",
+        description="At least one specific counter-argument or risk, each tagged "
+        "with severity. Mandatory even for very_bullish/very_bearish. The "
+        "severity tags are used to penalize confidence: "
+        "minor=-0.02, moderate=-0.04, strong=-0.07, critical=-0.12. "
+        "If the sum of penalties >= 0.15, the recommendation is dropped.",
+    )
+    event_subject: str = Field(
+        description="ONE short phrase identifying the main event the news is "
+        "about. Used downstream to deduplicate articles about the same event. "
+        "Examples: 'Kelp DAO exploit and recovery', "
+        "'BlackRock spot ETF inflow streak', 'FOMC May 2026 decision'.",
+    )
+    event_key_numbers: list[str] = Field(
+        default_factory=list,
+        description="Distinctive numerical values that fingerprint the event "
+        "(include units). Examples: ['$293M', '$300M'], ['$1.2B', '9000 BTC'], "
+        "['25 bps']. Empty if no notable numbers.",
+    )
+    event_related_projects: list[str] = Field(
+        default_factory=list,
+        description="Other crypto projects/protocols/companies named in the "
+        "article BEYOND affected_tickers. Examples: ['Aave', 'DeFi United', "
+        "'rsETH'] when the news is about Kelp but Aave/DeFi-United are named.",
     )

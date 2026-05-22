@@ -1,6 +1,7 @@
 import asyncio
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 import httpx
@@ -76,11 +77,116 @@ class BinanceClient:
         raw = resp.json()
         klines = [_parse_kline(row) for row in raw]
 
+        # Binance includes the still-building current bar in /klines responses.
+        # Its volume is whatever-has-traded-so-far (often a few percent of the
+        # 1h average), which silently breaks volume_ratio computation. Drop it
+        # so indicators only ever see closed candles.
+        now_ms = int(time.time() * 1000)
+        if klines and klines[-1].close_time_ms > now_ms:
+            klines = klines[:-1]
+
         async with self._lock:
             self._cache[key] = _CacheEntry(
                 fetched_at_monotonic=now,
                 klines=klines,
             )
+        return klines
+
+    async def fetch_kline_at(
+        self,
+        ticker: str,
+        target_dt: datetime,
+        *,
+        interval: str = "1h",
+    ) -> Kline | None:
+        """Fetch the single kline whose open_time is at-or-just-after target_dt.
+
+        Used for hit-rate tracking — given a recommendation sent at T, we want
+        the close price at T+1h, T+6h, T+24h. Returns None if Binance has no
+        kline yet (target_dt is in the future or beyond the symbol's history).
+
+        Bypasses the rolling cache because each historical query is unique per
+        (symbol, target_ms) and the rolling cache is keyed for the
+        always-most-recent batch.
+        """
+        symbol = self._symbol(ticker)
+        start_ms = int(target_dt.timestamp() * 1000)
+        try:
+            resp = await self._http.get(
+                BINANCE_KLINES_URL,
+                params={
+                    "symbol": symbol,
+                    "interval": interval,
+                    "startTime": start_ms,
+                    "limit": 1,
+                },
+            )
+            resp.raise_for_status()
+        except httpx.HTTPError as exc:
+            log.warning(
+                "binance_kline_at_fetch_failed",
+                symbol=symbol,
+                target_dt=target_dt.isoformat(),
+                error=str(exc),
+            )
+            raise
+
+        rows = resp.json()
+        if not rows:
+            return None
+        kline = _parse_kline(rows[0])
+        # Defensive: if the queried target falls inside the in-progress bar,
+        # Binance returns it; treat as not-yet-available so callers retry later.
+        now_ms = int(time.time() * 1000)
+        if kline.close_time_ms > now_ms:
+            return None
+        return kline
+
+    async def fetch_klines_range(
+        self,
+        ticker: str,
+        start_dt: datetime,
+        end_dt: datetime,
+        *,
+        interval: str = "1h",
+        limit: int = 1000,
+    ) -> list[Kline]:
+        """Fetch klines covering a [start_dt, end_dt] UTC window.
+
+        Used by the hit-rate tracker to scan a recommendation's open
+        period for TP/SL hits. Drops the in-progress kline if present.
+        Bypasses the rolling cache (each call is a unique window).
+        """
+        symbol = self._symbol(ticker)
+        start_ms = int(start_dt.timestamp() * 1000)
+        end_ms = int(end_dt.timestamp() * 1000)
+        try:
+            resp = await self._http.get(
+                BINANCE_KLINES_URL,
+                params={
+                    "symbol": symbol,
+                    "interval": interval,
+                    "startTime": start_ms,
+                    "endTime": end_ms,
+                    "limit": limit,
+                },
+            )
+            resp.raise_for_status()
+        except httpx.HTTPError as exc:
+            log.warning(
+                "binance_klines_range_failed",
+                symbol=symbol,
+                start=start_dt.isoformat(),
+                end=end_dt.isoformat(),
+                error=str(exc),
+            )
+            raise
+
+        raw = resp.json()
+        klines = [_parse_kline(row) for row in raw]
+        now_ms = int(time.time() * 1000)
+        if klines and klines[-1].close_time_ms > now_ms:
+            klines = klines[:-1]
         return klines
 
     async def aclose(self) -> None:
