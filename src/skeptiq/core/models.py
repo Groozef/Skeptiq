@@ -75,6 +75,13 @@ class Analysis(Base):
     cache_read_tokens: Mapped[int] = mapped_column(Integer, default=0)
     cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
 
+    # v0.2.1 event fingerprint for cross-article deduplication.
+    event_subject: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    event_key_numbers_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    event_related_projects_json: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )
+
     item: Mapped[IngestedItem] = relationship(back_populates="analyses")
     recommendations: Mapped[list["Recommendation"]] = relationship(
         back_populates="analysis"
@@ -93,9 +100,36 @@ class Recommendation(Base):
     direction: Mapped[str] = mapped_column(String(8))
     technical_context_json: Mapped[str] = mapped_column(Text)
     technical_alignment: Mapped[str] = mapped_column(String(16))
+    # v0.2 calibration audit trail; nullable so v0.1 rows survive lightweight migration.
+    base_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    confidence_adjusted: Mapped[float | None] = mapped_column(Float, nullable=True)
+    confidence_adjustments_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # v0.4 news_class — nullable so v0.1-v0.3 rows survive lightweight migration.
+    # Values: "impulsive" / "trend". "baseline" is dropped before persistence,
+    # so it never appears in this column.
+    news_class: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    invalidation_level: Mapped[float | None] = mapped_column(Float, nullable=True)
+    invalidation_kind: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    stop_loss: Mapped[float | None] = mapped_column(Float, nullable=True)
+    take_profit: Mapped[float | None] = mapped_column(Float, nullable=True)
     sent_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=_utcnow,
+    )
+
+    # v0.2.1 horizon-aware expiry + final outcome.
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    final_outcome: Mapped[str | None] = mapped_column(
+        String(16),
+        nullable=True,
+    )  # "tp_hit" / "sl_hit" / "expired"
+    final_outcome_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    final_outcome_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
     )
     telegram_message_id: Mapped[int | None] = mapped_column(
         BigInteger,

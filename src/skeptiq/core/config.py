@@ -7,6 +7,7 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 from skeptiq.schemas.analysis import ImpactMagnitude
 
 LogFormat = Literal["console", "json"]
+MessageLanguage = Literal["en", "ru"]
 
 
 class Settings(BaseSettings):
@@ -35,6 +36,8 @@ class Settings(BaseSettings):
 
     log_level: str = "INFO"
     log_format: LogFormat = "console"
+
+    message_language: MessageLanguage = "en"
 
     @field_validator("watchlist", mode="before")
     @classmethod
